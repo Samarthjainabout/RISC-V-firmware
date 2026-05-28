@@ -20,6 +20,19 @@ The debug setup connects the same scan intent to two targets:
 The remote Ubuntu PC has the Caravel board attached over FTDI. This laptop talks
 to that PC through Tailscale and SSH.
 
+## Current State
+
+As of May 28, 2026, the chip is flashed with the cocotb-style scan firmware
+from `cocotb_scan_debug_firmware.c`.
+
+- Flash/programming mode: remove `J2`.
+- UART/logging mode: reinstall `J2`, then reset the board.
+- Remote PC: `ubuntu-24-04@100.98.132.51`.
+- Remote serial device:
+  `/dev/serial/by-id/usb-FTDI_Single_RS232-HS-if00-port0`.
+- Wishbone is intentionally skipped in firmware because the current chip WB
+  path is not working.
+
 ## Current Firmware
 
 Primary firmware:
@@ -240,6 +253,16 @@ After flashing:
 1. Reinstall `J2` for UART.
 2. Press the board reset button.
 3. Watch UART output from the remote PC.
+
+Use the remote venv's pyserial:
+
+```bash
+ssh -tt ubuntu-24-04@100.98.132.51 \
+  '~/caravel_venv/bin/python3 -m serial.tools.miniterm \
+   /dev/serial/by-id/usb-FTDI_Single_RS232-HS-if00-port0 9600'
+```
+
+Quit `miniterm` with `Ctrl+]`.
 
 Expected log prefixes:
 
