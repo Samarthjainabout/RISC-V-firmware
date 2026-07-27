@@ -189,12 +189,12 @@ void main(void)
     //REG32(NEURO_ADDR) = 0x43E01405;
      REG32(NEURO_ADDR) = 0x44001405;
     wait_cycles(500);
-    print("[TC_READ_HW] Writing command 4: 0x4002AAFF\n");
-    REG32(NEURO_ADDR) = 0xC00388A2;                      // read for (0,0) cell
-    wait_cycles(500);
-    //print("[TC_READ_HW] Writing command 4: 0x4002AA82\n");
-    //REG32(NEURO_ADDR) = 0x4003AA82;                     // set for (0,0) cell
+    //print("[TC_READ_HW] Writing command 4 READ: 0xC00388A2\n");
+    //REG32(NEURO_ADDR) = 0xC00388A2;                     // read for (0,0) cell
     //wait_cycles(500);
+    print("[TC_READ_HW] Writing command 4 SET: 0x4003AA82\n");
+    REG32(NEURO_ADDR) = 0x4003AA82;                       // set for (0,0) cell
+    wait_cycles(500);
     //print("[TC_READ_HW] Writing command 4: 0x4002AA82\n");
     //REG32(NEURO_ADDR) = 0x8003AA82;                     // reset for (0,0) cell
     //wait_cycles(500);	
