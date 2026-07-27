@@ -8,6 +8,7 @@
     - Clock period = 1000 ns.
     - Clock high time = 500 ns.
     - Clock low time = 500 ns.
+    - Keeps interrupts enabled so USB remains connected.
     - Watches Caravel reset/resetb on PIN_CARAVEL_RESET.
     - When reset is pressed, waits until reset is released.
     - Then sends: dummy 0, followed by the real 16-bit scan word, LSB first.
@@ -48,10 +49,6 @@ constexpr uint32_t HALF_CYCLES = F_CPU / (2UL * XCLK_HZ);
 static_assert(F_CPU % (2UL * XCLK_HZ) == 0,
               "Use a Teensy CPU speed divisible by 2 MHz. 600 MHz is recommended.");
 
-#if F_CPU != 600000000UL
-#warning "Timing was reviewed for Teensy 4.1 at 600 MHz."
-#endif
-
 constexpr bool CARAVEL_RESET_ACTIVE_LOW = true;
 
 constexpr bool    OP_SET = true; // For set = true, read & reset = false
@@ -83,16 +80,27 @@ FASTRUN static inline void waitUntilCycle(uint32_t target) {
   }
 }
 
+FASTRUN static inline void scheduleNextEdge() {
+  next_edge_cycle += HALF_CYCLES;
+
+  // If an interrupt made this edge late, stretch the current phase instead of
+  // emitting back-to-back catch-up edges.
+  const uint32_t now = ARM_DWT_CYCCNT;
+  if ((int32_t)(now - next_edge_cycle) >= 0) {
+    next_edge_cycle = now + HALF_CYCLES;
+  }
+}
+
 FASTRUN static inline void xclkRise() {
   waitUntilCycle(next_edge_cycle);
   XCLK_HIGH();
-  next_edge_cycle += HALF_CYCLES;
+  scheduleNextEdge();
 }
 
 FASTRUN static inline void xclkFall() {
   waitUntilCycle(next_edge_cycle);
   XCLK_LOW();
-  next_edge_cycle += HALF_CYCLES;
+  scheduleNextEdge();
 }
 
 FASTRUN static inline void xclkCycle() {
@@ -129,6 +137,10 @@ FASTRUN static inline void setScanDlBit(uint8_t value) {
 }
 
 FASTRUN static void shiftScanWord(uint16_t scan_word) {
+  // Keep the packet edge-aligned. USB tolerates this short interrupt pause.
+  noInterrupts();
+  next_edge_cycle = ARM_DWT_CYCCNT + HALF_CYCLES;
+
   SCAN_DL_LOW();
   SCAN_DR_HIGH();
 
@@ -155,6 +167,7 @@ FASTRUN static void shiftScanWord(uint16_t scan_word) {
     TM_LOW();
   }
 
+  interrupts();
   LED_HIGH();
 }
 
@@ -179,6 +192,8 @@ FASTRUN static void handleResetTriggerIfNeeded() {
 }
 
 void setup() {
+  Serial.begin(115200);
+
   pinMode(PIN_XCLK, OUTPUT);
   pinMode(PIN_SCAN_DL, OUTPUT);
   pinMode(PIN_SCAN_DR, OUTPUT);
@@ -195,7 +210,6 @@ void setup() {
   LED_LOW();
 
   delay(10);
-  noInterrupts();
   enableCycleCounter();
   next_edge_cycle = ARM_DWT_CYCCNT + HALF_CYCLES;
 }
