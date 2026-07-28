@@ -156,7 +156,7 @@ void main(void)
     // Performing Write Operation
     // Same as cocotb firmware
     // -----------------------------
-    /*
+
     print("[TC_READ_HW] Writing command 1: 0x00036472\n");
     REG32(NEURO_ADDR) = 0x00036472;
     wait_cycles(500);
@@ -173,19 +173,18 @@ void main(void)
     print("[TC_READ_HW] Writing command 4: 0x4002AAFF\n");
     REG32(NEURO_ADDR) = 0x4002AAFF;
     wait_cycles(500);
-    
+
     print("[TC_READ_HW] Writing command 4: 0x4002AA82\n");
     REG32(NEURO_ADDR) = 0x4002AA82;
     wait_cycles(500);
-    */
-    
-    print("[TC_READ_HW] Writing command 1: 0x00036472\n");
+
+    /*print("[TC_READ_HW] Writing command 1: 0x00036472\n");
     REG32(NEURO_ADDR) = 0x00036472;
     wait_cycles(500);
     print("[TC_READ_HW] Writing command 2: 0x462B000B\n");
     REG32(NEURO_ADDR) = 0x462B000B;
     wait_cycles(500);
-    print("[TC_READ_HW] Writing command 3: 0x43201405\n");
+    print("[TC_READ_HW] Writing command 3: 0x44001405\n");
     //REG32(NEURO_ADDR) = 0x43E01405;
      REG32(NEURO_ADDR) = 0x44001405;
     wait_cycles(500);
@@ -195,9 +194,9 @@ void main(void)
     print("[TC_READ_HW] Writing command 4 SET: 0x4003AA82\n");
     REG32(NEURO_ADDR) = 0x4003AA82;                       // set for (0,0) cell
     wait_cycles(500);
-    //print("[TC_READ_HW] Writing command 4: 0x4002AA82\n");
+    //print("[TC_READ_HW] Writing command 4: 0x8003AA82\n");
     //REG32(NEURO_ADDR) = 0x8003AA82;                     // reset for (0,0) cell
-    //wait_cycles(500);	
+    //wait_cycles(500); */
 
     // -----------------------------
     // Read back from user Wishbone address
