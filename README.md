@@ -1,140 +1,113 @@
-# BM Labs X1 IP Debug Firmware
+# RISC-V Firmware Remote Flash Notes
 
-This repository contains RISC-V firmware for debugging the BM Labs X1 IP through
-the Caravel management SoC.
+This repository contains chip firmware and helper scripts for the Caravel board
+connected to the remote Ubuntu PC over Tailscale.
 
-The current chip image is a firmware-driven version of the cocotb scan test. It
-drives the same scan pins and scan words that the cocotb testbench drives, while
-printing progress checkpoints over UART and pulsing the management GPIO LED so
-the run can be tracked visually on the board.
+## Reliable AI TMR Cocotb Experiment
 
-## Automated Debug Platform
+The directory `caravel_tmr_uart_cocotb` contains the current reliable-AI
+experiment:
 
-![Automated debug platform](docs/automated-debug-platform.png)
+- three replicated Caravel/PARTCL endpoints with UART TMR voting,
+- the real BMsemi PARTCL `mat_mult_wb.v` systolic array RTL instantiated in
+  each replica,
+- behavioral X1/ReRAM storage for systolic results and Qwen parity records,
+- a full-file Qwen3-0.6B safetensors SEU/parity/correction run,
+- remote Icarus/cocotb results from `100.115.20.54`.
 
-The debug setup connects the same scan intent to two targets:
+Key result:
 
-- Caravel + cocotb simulation for automated regression and waveform inspection.
-- Actual chip over UART for silicon validation using firmware checkpoints.
+```text
+skew Injected 64 SEU bits, corrected 64, 0 uncorrectable blocks, SHA-256 restored.
+Remote cocotb: TESTS=3 PASS=3 FAIL=0 SKIP=0
+Qwen3-0.6B X1 parity capacity: 211.402 Mbit effective, 634.205 Mbit with three-way TMR replication.
+```
 
-The remote Ubuntu PC has the Caravel board attached over FTDI. This laptop talks
-to that PC through Tailscale and SSH.
+See:
 
-## Current State
-
-As of May 28, 2026, the chip is flashed with the cocotb-style scan firmware
-from `cocotb_scan_debug_firmware.c`.
-
-- Flash/programming mode: remove `J2`.
-- UART/logging mode: reinstall `J2`, then reset the board.
-- Remote PC: `ubuntu-24-04@100.98.132.51`.
-- Remote serial device:
-  `/dev/serial/by-id/usb-FTDI_Single_RS232-HS-if00-port0`.
-- Wishbone is intentionally skipped in firmware because the current chip WB
-  path is not working.
+```text
+caravel_tmr_uart_cocotb/README.md
+caravel_tmr_uart_cocotb/data/qwen_x1_ecc_manifest.json
+caravel_tmr_uart_cocotb/data/remote_cocotb_results_20260604.json
+```
 
 ## Current Firmware
 
-Primary firmware:
-
-- `cocotb_scan_debug_firmware.c`
-
-This is the file to edit for the current chip flow. It was copied to the remote
-Caravel firmware directory as:
+The current firmware source is:
 
 ```text
-~/caravel_board/firmware/chipignite/scan_debug/scan_debug.c
+cocotb_scan_debug_firmware.c
 ```
 
-The firmware implements the cocotb `ram_word` scan flow:
+It is a chip-side version of the cocotb `ram_word` scan test. It drives the
+scan/debug GPIOs from the management CPU and prints progress over UART.
 
-1. Configure management GPIO, UART, and project GPIOs.
-2. Drive initial scan idle state.
-3. Print/pulse a firmware-ready checkpoint.
-4. Log simulation-only steps such as `release_csb`.
-5. Log Wishbone operations as non-blocking placeholders.
-6. Drive scan transaction `0x8000`, LSB first.
-7. Wait between transactions.
-8. Drive scan transaction `0x8822`, LSB first.
-9. Print completion and enter an LED heartbeat loop.
+Behavior:
 
-Important: the current chip Wishbone path is not working. The firmware therefore
-does not touch `0x30000004` by default. WB actions are printed as
-`[COCOTB-SCAN][WB-PLACEHOLDER]` messages and execution continues.
+- Prints UART checkpoints prefixed with `[COCOTB-SCAN]`.
+- Toggles the management GPIO LED at each major checkpoint.
+- Configures scan pins as management outputs.
+- Drives the cocotb scan sequence:
+  - transaction `0x8000`
+  - transaction `0x8822`
+  - 16 bits, LSB first
+  - `TM` high during the transaction
+  - 4 extra `TM` high cycles after each shift
+- Keeps `GPIO35` low as `ScanInCC`.
+- Leaves Wishbone operations as placeholders because WB is not working on the
+  currently connected chip.
 
-To actually execute those WB accesses in a future chip/build, compile with:
+The firmware does not access `0x30000004` unless built with:
 
 ```c
 #define ENABLE_WB_TOUCHES 1
 ```
 
-or pass `-DENABLE_WB_TOUCHES=1` in the Makefile.
-
-## Legacy Firmware
-
-Older reset-sequence firmware:
-
-- `top_tb_scan_debug_reset_sequence_riscv.c`
-
-That file is a firmware translation of `top_tb_scan_debug_reset_sequence.sv`.
-Keep it for reference, but it is not the image currently flashed on the chip.
-
-## GPIO Map
-
-The current firmware uses this Caravel GPIO mapping:
-
-| GPIO | Signal | Direction | Notes |
-| --- | --- | --- | --- |
-| GPIO21 | `ScanInDR` | Output | Driven like the cocotb source. Default is low throughout the transaction. |
-| GPIO22 | `ScanInDL` | Output | Serial scan data, shifted LSB first. |
-| GPIO35 | `ScanInCC` | Output | Held low for compatibility with the older scan-debug RTL path. |
-| GPIO36 | `TM` | Output | High during scan transaction, low in idle. |
-
-The cocotb source comments mention `ScanInDR` going high after completion, but
-the executable cocotb code drives it low. The firmware follows the executable
-cocotb behavior. If the hardware protocol needs a high done/idle value, override:
+Default is safe for the current chip:
 
 ```c
-SCAN_DR_IDLE_VALUE
-SCAN_DR_SHIFT_VALUE
-SCAN_DR_DONE_VALUE
+#define ENABLE_WB_TOUCHES 0
 ```
+
+## GPIO Mapping
+
+```text
+GPIO21 -> ScanInDR
+GPIO22 -> ScanInDL
+GPIO35 -> ScanInCC
+GPIO36 -> TM
+```
+
+The firmware follows the executable cocotb source: `ScanInDR` is driven low
+during idle, shifting, after-shift, and final idle. The old cocotb comment says
+`ScanInDR` may go high after completion, but the actual Python code drives it
+low.
 
 ## Remote Target
 
-- Remote PC hostname: `ubuntu-24`
-- Remote Tailscale IP: `100.98.132.51`
-- SSH user: `ubuntu-24-04`
-- Remote firmware directory:
-  `~/caravel_board/firmware/chipignite/scan_debug`
-- Remote flash image:
-  `~/caravel_board/firmware/chipignite/scan_debug/scan_debug.hex`
-- Flash utility:
-  `~/caravel_board/firmware/chipignite/util/caravel_hkflash.py`
-- Python environment:
-  `~/caravel_venv/bin/python3`
+```text
+Remote PC:       ubuntu-24
+Tailscale IP:    100.98.132.51
+SSH user:        ubuntu-24-04
+Firmware dir:    ~/caravel_board/firmware/chipignite/scan_debug
+Flash utility:   ~/caravel_board/firmware/chipignite/util/caravel_hkflash.py
+Python venv:     ~/caravel_venv/bin/python3
+```
 
-Do not commit passwords or private keys. Enter the remote sudo password only
-when SSH/sudo prompts for it.
+Do not commit passwords, private keys, or sudo secrets.
 
 ## Hardware Jumper Rule
 
-J2 multiplexes UART and the housekeeping SPI programming path.
+The UART and housekeeping SPI programming path are multiplexed by jumper `J2`.
 
 - Remove `J2` before flashing.
-- Reinstall `J2` after flashing if you want UART logs.
+- Put `J2` back after flashing if you want UART logs.
+- Press board reset after putting `J2` back.
 
-If `J2` is installed during flashing, the programmer can see the FTDI device but
-Caravel ID reads can fail with values like:
+If `J2` is installed while flashing, the flash utility may find the FTDI device
+but fail Caravel identification with values like `mfg=ffff` or `mfg=0000`.
 
-```text
-mfg        = ffff
-product    = ff
-project ID = 00000000
-Incorrect MFG value, expected 0x0456.
-```
-
-Expected ID when the board is correctly connected for flashing:
+Expected good Caravel ID:
 
 ```text
 mfg        = 0456
@@ -145,141 +118,96 @@ project ID = 12be90c4
 
 ## Build On Remote PC
 
-Copy the current local firmware to the remote build directory:
+Copy the local firmware source to the remote scan-debug directory and rebuild:
 
 ```bash
-scp cocotb_scan_debug_firmware.c \
-  ubuntu-24-04@100.98.132.51:/tmp/cocotb_scan_debug_firmware.c
+scp cocotb_scan_debug_firmware.c ubuntu-24-04@100.98.132.51:/tmp/cocotb_scan_debug_firmware.c
 
-ssh ubuntu-24-04@100.98.132.51 \
-  'cd ~/caravel_board/firmware/chipignite/scan_debug &&
-   cp scan_debug.c scan_debug.c.backup_$(date +%Y%m%d_%H%M%S) &&
-   cp /tmp/cocotb_scan_debug_firmware.c scan_debug.c &&
-   make clean hex'
+ssh ubuntu-24-04@100.98.132.51 '
+  set -e
+  cd ~/caravel_board/firmware/chipignite/scan_debug
+  cp scan_debug.c scan_debug.c.backup_$(date +%Y%m%d_%H%M%S)
+  cp /tmp/cocotb_scan_debug_firmware.c scan_debug.c
+  make clean hex
+'
 ```
 
-The known-good build produced:
+The build output is:
 
 ```text
-scan_debug.hex
+~/caravel_board/firmware/chipignite/scan_debug/scan_debug.hex
 ```
 
-with size `25110` bytes on May 28, 2026.
+## Flash
 
-## Flash From This Laptop
-
-This repo includes a helper:
+Remove `J2`, then run the stock remote flash flow:
 
 ```bash
-./flash_remote_caravel.sh
+ssh -tt ubuntu-24-04@100.98.132.51 '
+  cd ~/caravel_board/firmware/chipignite/scan_debug &&
+  ls -l scan_debug.hex &&
+  BUSDEV=$(lsusb -d 0403:6014 | awk '\''{print $2"/"substr($4,1,3)}'\'') &&
+  echo "$BUSDEV" &&
+  sudo chmod a+rw "/dev/bus/usb/$BUSDEV" &&
+  ~/caravel_venv/bin/python3 ../util/caravel_hkflash.py scan_debug.hex
+'
 ```
 
-To flash the already-built remote `scan_debug.hex`:
+Successful flash should end with all read compares passing.
 
-```bash
-REMOTE_TTY=1 ./flash_remote_caravel.sh
-```
-
-To copy a local `.hex` to the remote PC as `scan_debug.hex` and then flash:
-
-```bash
-REMOTE_TTY=1 ./flash_remote_caravel.sh path/to/your_firmware.hex
-```
-
-If more than one FTDI device is attached, select the bus/device manually:
-
-```bash
-USB_BUSDEV=002/002 REMOTE_TTY=1 ./flash_remote_caravel.sh
-```
-
-## Stock Remote Flash Commands
-
-Known-good sequence on the remote PC:
-
-```bash
-cd ~/caravel_board/firmware/chipignite/scan_debug
-
-ls -l scan_debug.hex
-
-BUSDEV=$(lsusb -d 0403:6014 | awk '{print $2"/"substr($4,1,3)}')
-echo "$BUSDEV"
-sudo chmod a+rw "/dev/bus/usb/$BUSDEV"
-
-~/caravel_venv/bin/python3 ../util/caravel_hkflash.py scan_debug.hex
-```
-
-Known-good one-command version from this laptop:
-
-```bash
-ssh -tt ubuntu-24-04@100.98.132.51 \
-  'cd ~/caravel_board/firmware/chipignite/scan_debug &&
-   ls -l scan_debug.hex &&
-   BUSDEV=$(lsusb -d 0403:6014 | awk '\''{print $2"/"substr($4,1,3)}'\'') &&
-   echo "$BUSDEV" &&
-   sudo chmod a+rw "/dev/bus/usb/$BUSDEV" &&
-   ~/caravel_venv/bin/python3 ../util/caravel_hkflash.py scan_debug.hex'
-```
-
-## Latest Flash Result
-
-The cocotb-style firmware was built and flashed successfully on May 28, 2026.
-
-Flash summary:
+Latest known-good run:
 
 ```text
-Success: Found one matching FTDI device at ftdi://ftdi:232h:2:2/1
-Caravel data:
-   mfg        = 0456
-   product    = 11
-   project ID = 23097d48
-   project ID = 12be90c4
-
-JEDEC = ef4016
-total_bytes = 8192
-addr 0x0 ... addr 0x1f00: read compare successful
-pll_trim = b'ffefff03'
+scan_debug.hex size: 25110 bytes
+programmed bytes:   8192
+verify:             all read compares successful
+pll_trim:           b'ffefff03'
 ```
 
-Previous remote source backup:
+## UART After Flashing
 
-```text
-~/caravel_board/firmware/chipignite/scan_debug/scan_debug.c.backup_20260528_123418
-```
+After flash verify succeeds:
 
-## Expected UART Output
-
-After flashing:
-
-1. Reinstall `J2` for UART.
+1. Put `J2` back.
 2. Press the board reset button.
-3. Watch UART output from the remote PC.
+3. Open the UART monitor on the remote PC.
 
-Use the remote venv's pyserial:
-
-```bash
-ssh -tt ubuntu-24-04@100.98.132.51 \
-  '~/caravel_venv/bin/python3 -m serial.tools.miniterm \
-   /dev/serial/by-id/usb-FTDI_Single_RS232-HS-if00-port0 9600'
-```
-
-Quit `miniterm` with `Ctrl+]`.
-
-Expected log prefixes:
+The firmware prints messages like:
 
 ```text
 [COCOTB-SCAN] firmware start: chip-side version of cocotb ram_word scan test
-[COCOTB-SCAN][CP ...]
+[COCOTB-SCAN][CP 0x00000001] configure scan GPIO as management outputs
 [COCOTB-SCAN][WB-PLACEHOLDER] ... SKIPPED_current_chip_wb_not_working
 [COCOTB-SCAN][TXN] start scan_transaction_0 data=0x00008000
 [COCOTB-SCAN][TXN] start scan_transaction_1 data=0x00008822
 [COCOTB-SCAN][DONE] complete flow executed; entering LED heartbeat
 ```
 
-## Debug Notes
+The LED pulses during checkpoints and then enters a heartbeat loop when the
+complete flow has executed.
 
-- If flashing fails with invalid Caravel ID, remove `J2`, check board power, and
-  retry.
-- If flashing succeeds but there is no UART, reinstall `J2` and reset the board.
-- If UART logs show WB placeholders, that is expected on the current chip.
-- If scan timing needs adjustment, tune `SCAN_EDGE_DELAY`, `SCAN_IDLE_DELAY`,
-  and `LED_PULSE_DELAY` in `cocotb_scan_debug_firmware.c`.
+## Helper Script
+
+This repo also includes:
+
+```bash
+./flash_remote_caravel.sh
+```
+
+It can flash an existing remote `scan_debug.hex`:
+
+```bash
+./flash_remote_caravel.sh
+```
+
+Or copy a local `.hex` to the remote PC as `scan_debug.hex` and flash it:
+
+```bash
+./flash_remote_caravel.sh path/to/firmware.hex
+```
+
+Use an interactive remote terminal if sudo needs a password:
+
+```bash
+REMOTE_TTY=1 ./flash_remote_caravel.sh path/to/firmware.hex
+```
