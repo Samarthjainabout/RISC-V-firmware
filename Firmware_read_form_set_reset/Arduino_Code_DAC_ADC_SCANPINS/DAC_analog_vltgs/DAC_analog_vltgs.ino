@@ -208,6 +208,18 @@ void printMonitorSample(const char *packetName, unsigned long elapsedUs, const S
   Serial.println(sample.resetUa, 4);
 }
 
+void printShuntSnapshot(const char *label) {
+  ShuntCurrents sample = readMonitoredShunts();
+  Serial.print("SHUNT_SNAPSHOT label=");
+  Serial.print(label);
+  Serial.print(" read_uA=");
+  Serial.print(sample.readUa, 4);
+  Serial.print(" set_uA=");
+  Serial.print(sample.setUa, 4);
+  Serial.print(" reset_uA=");
+  Serial.println(sample.resetUa, 4);
+}
+
 void printPacketSummary(const char *packetName, const MonitorStats &stats) {
   Serial.print("PACKET_SUMMARY packet=");
   Serial.print(packetName);
@@ -335,8 +347,13 @@ void runReadSetReadResetSequence(const String &cmd) {
   runMonitoredDacPacket("READ2", dac[2], seqReadMv, holdMs);
   delay(20);
   runMonitoredDacPacket("RESET", dac[5], seqResetMv, holdMs);
+  delay(20);
+  runMonitoredDacPacket("READ3", dac[2], seqReadMv, holdMs);
 
   setPacketDacsZero();
+  delay(20);
+  Serial.println("PACKET_DACS_ZEROED dac2=0mV dac0=0mV dac5=0mV");
+  printShuntSnapshot("FINAL_ZERO");
   Serial.println("RSRR_DONE");
 }
 

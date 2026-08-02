@@ -145,6 +145,19 @@ For each packet:
 4. Turn the packet DAC back off.
 5. Print a `PACKET_SUMMARY` line.
 
+Firmware update after the history-dependence check:
+
+```text
+READ1 -> SET -> READ2 -> RESET -> READ3
+```
+
+After `READ3`, the firmware explicitly writes `0 mV` to `dac[2]`, `dac[0]`, and `dac[5]`, waits `20 ms`, prints:
+
+```text
+PACKET_DACS_ZEROED dac2=0mV dac0=0mV dac5=0mV
+SHUNT_SNAPSHOT label=FINAL_ZERO ...
+```
+
 The summary reports:
 
 - baseline current
@@ -235,6 +248,56 @@ The read/set packet routing is now consistent with the shunt monitor:
 
 The reset shunt still shows background movement during read packets, so treat it as a monitored channel rather than a perfectly isolated indicator.
 
+## READ3 Final-Zero Firmware Update
+
+Concern tested: the high reset baseline could be caused by history from the previous packet/state. Before changing firmware, a read-only active sequence was sent, followed immediately by an all-zero packet baseline:
+
+```text
+RSRR 1700 0 0 150
+RSRR 0 0 0 1000
+```
+
+The zero baseline after the read-only active sequence shifted strongly:
+
+| Condition | Read mean | Set mean | Reset mean | Observation |
+|---|---:|---:|---:|---|
+| Earlier zero baseline | `-0.114 uA` | `-0.066 uA` | `+0.969 uA` | low baseline |
+| Zero baseline after read-only active sequence | `-6.379 uA` | `-4.456 uA` | `+25.764 uA` | strong history-dependent state |
+
+This confirmed that the measured zero-current state depends on the previous packet/device state. It does not prove that the DAC output was electrically stuck, because the firmware was already writing those DAC channels back to zero, but it does show that ending history matters for the observed shunt currents.
+
+The firmware was then changed and flashed so the monitored command now ends with a third read packet:
+
+```text
+READ1 -> SET -> READ2 -> RESET -> READ3 -> zero dac[2], dac[0], dac[5]
+```
+
+Post-flash default `RSRR` packet peak current deltas:
+
+| Packet | Read shunt peak delta | Set shunt peak delta | Reset shunt peak delta | Observation |
+|---|---:|---:|---:|---|
+| READ1 | `1.1094 uA` | `0.0391 uA` | `0.2891 uA` | read shunt is dominant |
+| SET | `0.1406 uA` | `0.4219 uA` | `0.1953 uA` | set shunt is dominant |
+| READ2 | `1.0625 uA` | `0.1016 uA` | `0.2969 uA` | read shunt is dominant |
+| RESET | `0.0781 uA` | `0.0937 uA` | `1.1484 uA` | reset shunt is dominant |
+| READ3 | `1.0938 uA` | `0.0703 uA` | `0.2031 uA` | final active packet is read |
+
+Final ADC snapshot after the default `RSRR` command zeroed `dac[2]`, `dac[0]`, and `dac[5]`:
+
+| Snapshot | Read current | Set current | Reset current |
+|---|---:|---:|---:|
+| `FINAL_ZERO` | `-0.1016 uA` | `-0.0469 uA` | `+1.0313 uA` |
+
+The longer all-zero baseline immediately after the READ3 firmware run collected `435` samples:
+
+| Shunt | Mean current | Min current | Max current | Mean ADS counts |
+|---|---:|---:|---:|---:|
+| Read | `-0.116 uA` | `-0.203 uA` | `-0.031 uA` | `-14.8` |
+| Set | `-0.065 uA` | `-0.164 uA` | `+0.023 uA` | `-8.3` |
+| Reset | `+0.967 uA` | `+0.711 uA` | `+1.242 uA` | `+123.8` |
+
+Conclusion: after the new READ3-ended sequence and explicit final DAC-zero step, the all-zero baseline returned to the earlier low baseline. The reset shunt still has a persistent about `+1 uA` offset/leakage baseline, but the large `+25.8 uA` history-dependent state was not present after the updated sequence.
+
 ## Source Logs
 
 Remote source data:
@@ -251,6 +314,8 @@ Remote source data:
 | Corrected LA1/GPIO27 post-swap RSRR serial log | `/home/ubuntu-24-04/saleae-api/captures/rsrr-saleae-a0-a15-la1-gpio27-20260802-154424/serial.log` |
 | Zero-packet ADC baseline | `/home/ubuntu-24-04/saleae-api/captures/adc-baseline-no-packet-zero-dac-20260802-155527/summary.json` |
 | Zero-packet ADC baseline serial log | `/home/ubuntu-24-04/saleae-api/captures/adc-baseline-no-packet-zero-dac-20260802-155527/serial.log` |
+| Read-only active sequence followed by zero baseline | `/home/ubuntu-24-04/saleae-api/captures/adc-baseline-after-read-packet-20260802-160354/summary.json` |
+| READ3 firmware post-flash default RSRR and zero baseline | `/home/ubuntu-24-04/saleae-api/captures/rsrr-read3-finalzero-adc-20260802-160700/summary.json` |
 | ADC serial smoke validation | `/home/ubuntu-24-04/saleae-api/captures/adc-dac-shunt-smoke-20260802-142222/serial_adc.log` |
 
 ## Current Firmware State
@@ -264,6 +329,8 @@ READ1 -> dac[2]
 SET   -> dac[0]
 READ2 -> dac[2]
 RESET -> dac[5]
+READ3 -> dac[2]
+FINAL -> dac[2] = 0 mV, dac[0] = 0 mV, dac[5] = 0 mV
 ```
 
 ADS2 is initialized at `0x49`.
