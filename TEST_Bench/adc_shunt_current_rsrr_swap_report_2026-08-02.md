@@ -45,6 +45,27 @@ I_shunt_uA = V_shunt_mV
 
 This means 1 mV measured across the shunt corresponds to 1 uA of current.
 
+## Zero-Packet ADC Baseline
+
+To measure the real no-active-packet current, the Teensy was run with all packet DAC targets set to `0 mV`:
+
+```text
+RSRR 0 0 0 1000
+```
+
+This keeps the read, set, and reset packet DAC outputs at zero while the firmware samples the same three differential ADC shunt channels. The run collected `348` ADC samples.
+
+| Shunt | Mean shunt voltage | Mean current | Min current | Max current | Mean ADS counts |
+|---|---:|---:|---:|---:|---:|
+| Read | `-0.114 mV` | `-0.114 uA` | `-0.211 uA` | `-0.023 uA` | `-14.6` |
+| Set | `-0.066 mV` | `-0.066 uA` | `-0.148 uA` | `+0.023 uA` | `-8.4` |
+| Reset | `+0.969 mV` | `+0.969 uA` | `+0.703 uA` | `+1.164 uA` | `+124.0` |
+
+Baseline conclusion:
+
+- read and set shunts are close to zero within small ADC offset/noise
+- reset shunt has a repeatable positive baseline near `+1 uA` even with packet DAC targets at zero
+
 ## Saleae Probe Validation
 
 Before the packet swap experiment, a DAC smoke test checked the new logic analyzer probe locations.
@@ -228,6 +249,8 @@ Remote source data:
 | Post-swap RSRR Saleae A0-A15 serial log | `/home/ubuntu-24-04/saleae-api/captures/rsrr-saleae-a0-a15-startedfirst-20260802-153149/serial.log` |
 | Corrected LA1/GPIO27 post-swap RSRR Saleae A0-A15 voltage capture | `/home/ubuntu-24-04/saleae-api/captures/rsrr-saleae-a0-a15-la1-gpio27-20260802-154424/summary.json` |
 | Corrected LA1/GPIO27 post-swap RSRR serial log | `/home/ubuntu-24-04/saleae-api/captures/rsrr-saleae-a0-a15-la1-gpio27-20260802-154424/serial.log` |
+| Zero-packet ADC baseline | `/home/ubuntu-24-04/saleae-api/captures/adc-baseline-no-packet-zero-dac-20260802-155527/summary.json` |
+| Zero-packet ADC baseline serial log | `/home/ubuntu-24-04/saleae-api/captures/adc-baseline-no-packet-zero-dac-20260802-155527/serial.log` |
 | ADC serial smoke validation | `/home/ubuntu-24-04/saleae-api/captures/adc-dac-shunt-smoke-20260802-142222/serial_adc.log` |
 
 ## Current Firmware State
