@@ -168,7 +168,7 @@ class TeensySerialGUI:
         # Mode Index
         frame_index = ttk.Frame(self.root)
         frame_index.pack(pady=5)
-        self.index_label = ttk.Label(frame_index, text="1. SET | 2. RESET | 3. LOOP | 4. VERIFY", font=("Arial", 9))
+        self.index_label = ttk.Label(frame_index, text="1. SET | 2. RESET | 3. LOOP | 4. VERIFY | 5. RSRR", font=("Arial", 9))
         self.index_label.pack()
 
         # Control Buttons
@@ -180,6 +180,7 @@ class TeensySerialGUI:
         ttk.Button(frame_buttons, text="RESET", command=lambda: self.send_command("CLEAR")).pack(side="left", padx=5)
         ttk.Button(frame_buttons, text="LOOP", command=lambda: self.send_command("LOOP")).pack(side="left", padx=5)
         ttk.Button(frame_buttons, text="VERIFY", command=lambda: self.send_command("VERIFY")).pack(side="left", padx=5)
+        ttk.Button(frame_buttons, text="RSRR", command=lambda: self.send_command("RSRR")).pack(side="left", padx=5)
         ttk.Button(frame_buttons, text="Stop", command=self.stop_reading).pack(side="left", padx=5)
 
     def refresh_ports(self):

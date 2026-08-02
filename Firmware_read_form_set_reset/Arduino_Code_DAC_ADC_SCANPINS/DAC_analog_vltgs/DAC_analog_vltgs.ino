@@ -2,6 +2,7 @@
 
 #include "DAC_read.h"
 #include <Adafruit_ADS1X15.h>
+#include <Wire.h>
 #include<math.h>
 #include "TeensyThreads.h"
 #include <WS2812Serial.h>
@@ -36,6 +37,13 @@
 //   Teensy 4.1:  1, 8, 14, 17, 20, 24, 29, 35, 47, 53
 
 Adafruit_ADS1115 ads1, ads2;
+static const uint8_t ADS1_ADDR = 0x48;
+static const uint8_t ADS2_ADDR = 0x49;
+static const int MONITOR_DEFAULT_SET_MV = 500;
+static const int MONITOR_DEFAULT_RESET_MV = 500;
+static const unsigned long MONITOR_DEFAULT_HOLD_MS = 150;
+bool ads1Ok = false;
+bool ads2Ok = false;
 byte drawingMemory1[4];         //  4 bytes per LED for RGBW
 byte drawingMemory2[4];         //  4 bytes per LED for RGBW
 DMAMEM byte displayMemory1[16];
@@ -94,6 +102,244 @@ float res_u1bl1 = 0, res_u1bl2  = 0, res_u2bl1  = 0, res_u2bl2  = 0, res_u3bl1  
 float iU1BL1, iU1BL2, iU2BL1, iU2BL2, iU3BL1, iU3BL2, iU4BL1, iU4BL2; // Export variable for current of U1BL1 -> U2BL2
 String addr_hex = "SET || LA0: 0xDEADC0DE LA1: 0xFFFFFFFF";
 
+struct ShuntCurrents {
+  float readMv;
+  float setMv;
+  float resetMv;
+  float readUa;
+  float setUa;
+  float resetUa;
+};
+
+struct MonitorStats {
+  ShuntCurrents first;
+  ShuntCurrents last;
+  ShuntCurrents minVal;
+  ShuntCurrents maxVal;
+  ShuntCurrents peakDelta;
+  unsigned int samples;
+};
+
+float mvToShuntUa(float mv) {
+  return (mv * 1000.0f) / shunt_res;
+}
+
+int clampInt(int value, int lo, int hi) {
+  if (value < lo) return lo;
+  if (value > hi) return hi;
+  return value;
+}
+
+unsigned long clampUlong(unsigned long value, unsigned long lo, unsigned long hi) {
+  if (value < lo) return lo;
+  if (value > hi) return hi;
+  return value;
+}
+
+float absDelta(float current, float baseline) {
+  return fabs(current - baseline);
+}
+
+void setPacketDacsZero() {
+  dac_write(dac[0], 0);
+  dac_write(dac[2], 0);
+  dac_write(dac[5], 0);
+}
+
+void writeDacMilliVolts(uint8_t channel, int mv) {
+  mv = clampInt(mv, 0, 5000);
+  dac_write(channel, (mv * 100.0f) / 5000.0f);
+}
+
+ShuntCurrents readMonitoredShunts() {
+  ShuntCurrents sample;
+  sample.readMv = ads1Ok ? ads1.readADC_Differential_0_1() * ads_diff_multiplier : 0.0f;
+  sample.setMv = ads1Ok ? ads1.readADC_Differential_2_3() * ads_diff_multiplier : 0.0f;
+  sample.resetMv = ads2Ok ? ads2.readADC_Differential_0_1() * ads_diff_multiplier : 0.0f;
+  sample.readUa = mvToShuntUa(sample.readMv);
+  sample.setUa = mvToShuntUa(sample.setMv);
+  sample.resetUa = mvToShuntUa(sample.resetMv);
+
+  vSh_u1bl1 = sample.readMv;
+  iU1BL1 = sample.readUa;
+  vSh_u2bl1 = sample.setMv;
+  iU2BL1 = sample.setUa;
+  vSh_u3bl1 = sample.resetMv;
+  iU3BL1 = sample.resetUa;
+  return sample;
+}
+
+void initMonitorStats(MonitorStats &stats, const ShuntCurrents &sample) {
+  stats.first = sample;
+  stats.last = sample;
+  stats.minVal = sample;
+  stats.maxVal = sample;
+  stats.peakDelta.readUa = 0.0f;
+  stats.peakDelta.setUa = 0.0f;
+  stats.peakDelta.resetUa = 0.0f;
+  stats.samples = 1;
+}
+
+void updateOneCurrent(float value, float baseline, float &minValue, float &maxValue, float &peakDeltaValue) {
+  if (value < minValue) minValue = value;
+  if (value > maxValue) maxValue = value;
+  float delta = absDelta(value, baseline);
+  if (delta > peakDeltaValue) peakDeltaValue = delta;
+}
+
+void updateMonitorStats(MonitorStats &stats, const ShuntCurrents &sample) {
+  stats.last = sample;
+  stats.samples++;
+  updateOneCurrent(sample.readUa, stats.first.readUa, stats.minVal.readUa, stats.maxVal.readUa, stats.peakDelta.readUa);
+  updateOneCurrent(sample.setUa, stats.first.setUa, stats.minVal.setUa, stats.maxVal.setUa, stats.peakDelta.setUa);
+  updateOneCurrent(sample.resetUa, stats.first.resetUa, stats.minVal.resetUa, stats.maxVal.resetUa, stats.peakDelta.resetUa);
+}
+
+void printMonitorSample(const char *packetName, unsigned long elapsedUs, const ShuntCurrents &sample) {
+  Serial.print("MONITOR_SAMPLE packet=");
+  Serial.print(packetName);
+  Serial.print(" t_us=");
+  Serial.print(elapsedUs);
+  Serial.print(" read_uA=");
+  Serial.print(sample.readUa, 4);
+  Serial.print(" set_uA=");
+  Serial.print(sample.setUa, 4);
+  Serial.print(" reset_uA=");
+  Serial.println(sample.resetUa, 4);
+}
+
+void printPacketSummary(const char *packetName, const MonitorStats &stats) {
+  Serial.print("PACKET_SUMMARY packet=");
+  Serial.print(packetName);
+  Serial.print(" samples=");
+  Serial.print(stats.samples);
+
+  Serial.print(" read_base_uA=");
+  Serial.print(stats.first.readUa, 4);
+  Serial.print(" read_end_uA=");
+  Serial.print(stats.last.readUa, 4);
+  Serial.print(" read_end_delta_uA=");
+  Serial.print(stats.last.readUa - stats.first.readUa, 4);
+  Serial.print(" read_span_uA=");
+  Serial.print(stats.maxVal.readUa - stats.minVal.readUa, 4);
+  Serial.print(" read_peak_delta_uA=");
+  Serial.print(stats.peakDelta.readUa, 4);
+
+  Serial.print(" set_base_uA=");
+  Serial.print(stats.first.setUa, 4);
+  Serial.print(" set_end_uA=");
+  Serial.print(stats.last.setUa, 4);
+  Serial.print(" set_end_delta_uA=");
+  Serial.print(stats.last.setUa - stats.first.setUa, 4);
+  Serial.print(" set_span_uA=");
+  Serial.print(stats.maxVal.setUa - stats.minVal.setUa, 4);
+  Serial.print(" set_peak_delta_uA=");
+  Serial.print(stats.peakDelta.setUa, 4);
+
+  Serial.print(" reset_base_uA=");
+  Serial.print(stats.first.resetUa, 4);
+  Serial.print(" reset_end_uA=");
+  Serial.print(stats.last.resetUa, 4);
+  Serial.print(" reset_end_delta_uA=");
+  Serial.print(stats.last.resetUa - stats.first.resetUa, 4);
+  Serial.print(" reset_span_uA=");
+  Serial.print(stats.maxVal.resetUa - stats.minVal.resetUa, 4);
+  Serial.print(" reset_peak_delta_uA=");
+  Serial.println(stats.peakDelta.resetUa, 4);
+}
+
+void runMonitoredDacPacket(const char *packetName, uint8_t dacChannel, int mv, unsigned long holdMs) {
+  ShuntCurrents sample = readMonitoredShunts();
+  MonitorStats stats;
+  initMonitorStats(stats, sample);
+
+  Serial.print("PACKET_BEGIN packet=");
+  Serial.print(packetName);
+  Serial.print(" dac=0x");
+  Serial.print(dacChannel, HEX);
+  Serial.print(" target_mV=");
+  Serial.print(mv);
+  Serial.print(" hold_ms=");
+  Serial.println(holdMs);
+  printMonitorSample(packetName, 0, sample);
+
+  writeDacMilliVolts(dacChannel, mv);
+  unsigned long startUs = micros();
+  while ((micros() - startUs) < (holdMs * 1000UL)) {
+    sample = readMonitoredShunts();
+    updateMonitorStats(stats, sample);
+    printMonitorSample(packetName, micros() - startUs, sample);
+    delay(1);
+  }
+
+  writeDacMilliVolts(dacChannel, 0);
+  sample = readMonitoredShunts();
+  updateMonitorStats(stats, sample);
+  printMonitorSample(packetName, micros() - startUs, sample);
+  printPacketSummary(packetName, stats);
+}
+
+void parseRsrrCommand(const String &cmd, int &seqReadMv, int &seqSetMv, int &seqResetMv, unsigned long &holdMs) {
+  seqReadMv = read_mv;
+  seqSetMv = MONITOR_DEFAULT_SET_MV;
+  seqResetMv = MONITOR_DEFAULT_RESET_MV;
+  holdMs = MONITOR_DEFAULT_HOLD_MS;
+
+  int readArg = seqReadMv;
+  int setArg = seqSetMv;
+  int resetArg = seqResetMv;
+  unsigned long holdArg = holdMs;
+  int parsed = sscanf(cmd.c_str(), "%*s %d %d %d %lu", &readArg, &setArg, &resetArg, &holdArg);
+  if (parsed >= 1) seqReadMv = readArg;
+  if (parsed >= 2) seqSetMv = setArg;
+  if (parsed >= 3) seqResetMv = resetArg;
+  if (parsed >= 4) holdMs = holdArg;
+
+  seqReadMv = clampInt(seqReadMv, 0, 5000);
+  seqSetMv = clampInt(seqSetMv, 0, 5000);
+  seqResetMv = clampInt(seqResetMv, 0, 5000);
+  holdMs = clampUlong(holdMs, 20, 5000);
+}
+
+void runReadSetReadResetSequence(const String &cmd) {
+  int seqReadMv;
+  int seqSetMv;
+  int seqResetMv;
+  unsigned long holdMs;
+  parseRsrrCommand(cmd, seqReadMv, seqSetMv, seqResetMv, holdMs);
+
+  mode = 5;
+  setPacketDacsZero();
+  delay(20);
+
+  Serial.print("RSRR_BEGIN read_mV=");
+  Serial.print(seqReadMv);
+  Serial.print(" set_mV=");
+  Serial.print(seqSetMv);
+  Serial.print(" reset_mV=");
+  Serial.print(seqResetMv);
+  Serial.print(" hold_ms=");
+  Serial.print(holdMs);
+  Serial.print(" ads1=0x");
+  Serial.print(ADS1_ADDR, HEX);
+  Serial.print(ads1Ok ? ":OK" : ":FAIL");
+  Serial.print(" ads2=0x");
+  Serial.print(ADS2_ADDR, HEX);
+  Serial.println(ads2Ok ? ":OK" : ":FAIL");
+
+  // Hardware check showed the original read/set DAC packet paths were swapped.
+  runMonitoredDacPacket("READ1", dac[2], seqReadMv, holdMs);
+  delay(20);
+  runMonitoredDacPacket("SET", dac[0], seqSetMv, holdMs);
+  delay(20);
+  runMonitoredDacPacket("READ2", dac[2], seqReadMv, holdMs);
+  delay(20);
+  runMonitoredDacPacket("RESET", dac[5], seqResetMv, holdMs);
+
+  setPacketDacsZero();
+  Serial.println("RSRR_DONE");
+}
+
 
 void setup() {
   Serial.begin(115200);
@@ -114,23 +360,26 @@ void setup() {
   pinMode(faultLed, OUTPUT);
 
   // ADS1115 Initialization
+  Wire.begin();
   ads1.setGain(GAIN_SIXTEEN);
   ads1.setDataRate(RATE_ADS1115_475SPS);
-  // ads2.setGain(GAIN_SIXTEEN);
-  // ads2.setDataRate(RATE_ADS1115_16SPS);
+  ads2.setGain(GAIN_SIXTEEN);
+  ads2.setDataRate(RATE_ADS1115_475SPS);
   // ads1.setGain(GAIN_TWO);  // ±1.024 V differential range
   // ads1.setDataRate(RATE_ADS1115_16SPS);
 
   // ads2.setGain(GAIN_TWO);  // ±1.024 V differential range
   // ads2.setDataRate(RATE_ADS1115_16SPS);
-  if (!ads1.begin(0x48, &Wire)) {
+  ads1Ok = ads1.begin(ADS1_ADDR, &Wire);
+  if (!ads1Ok) {
     Serial.println("Failed to initialize ADS1.");
     while (1);
   }
-  // if (!ads2.begin(0x4A, &Wire)) {
-  //   Serial.println("Failed to initialize ADS2.");
-  //   while (1);
-  // }
+  ads2Ok = ads2.begin(ADS2_ADDR, &Wire);
+  Serial.print("ADS2 0x");
+  Serial.print(ADS2_ADDR, HEX);
+  Serial.print(" init: ");
+  Serial.println(ads2Ok ? "OK" : "FAIL");
 
   // --- POWER-UP SEQUENCE ---
   // Option A: Start with all channels at 0V, then apply specific voltages
@@ -150,14 +399,15 @@ int srCycles = 0;
 void loop(){
   //dac_powerup_continuous_nonblocking();
   //dac_powerup_continuous();
- while(!Serial){
-  if(flag == 0){
+  if (flag != 0 || Serial.available() <= 0) {
+    return;
+  }
 
-    if (Serial.available() > 0) {
-        command = Serial.readStringUntil('\n'); // Read until newline character
-        command.trim(); // Remove any extra whitespace or newline
-    }
-    
+  command = Serial.readStringUntil('\n'); // Read until newline character
+  command.trim(); // Remove any extra whitespace or newline
+  if (command.length() == 0) {
+    return;
+  }
 
   if (command == "SET") {
             mode = 1;
@@ -231,12 +481,13 @@ void loop(){
             mode = 4;
             read_all(1000000);
             command = "";
+        } else if (command.startsWith("RSRR") || command.startsWith("PACKETS")) {
+            runReadSetReadResetSequence(command);
+            command = "";
         } else {
           mode = 0;
           dac_stndby();
         }
-  } 
- }
 }
 
  String operation_state = "-";

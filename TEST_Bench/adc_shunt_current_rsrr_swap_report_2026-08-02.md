@@ -1,0 +1,246 @@
+# ADC Shunt Current Monitor RSRR Packet Swap Report
+
+Date: 2026-08-02
+
+Experiment title: ADC shunt current monitoring during read -> set -> read -> reset packets, before and after packet DAC swap
+
+## Purpose
+
+This experiment validated the Teensy ADC setup for monitoring three 1 kOhm shunt currents while sending a read -> set -> read -> reset packet sequence.
+
+The first monitored run showed that the read packets produced their largest response on the set shunt. The read and set packet DAC outputs were then swapped in firmware and the same monitored packet sequence was rerun.
+
+## Remote Setup
+
+- Remote PC: `ubuntu-24`
+- Tailscale IP: `100.98.132.51`
+- Teensy USB serial: `/dev/serial/by-id/usb-Teensyduino_USB_Serial_8829000-if00`
+- Teensy board: Teensy 4.1, detected at `usb1/1-2`
+- Logic analyzer: Saleae Logic Pro 16 automation on port `10430`
+
+## ADC And Shunt Setup
+
+ADC devices are ADS1115 parts on the Teensy I2C bus.
+
+| ADC | I2C address | Differential pair | Signal monitored |
+|---|---:|---|---|
+| ADS1 | `0x48` | `A0-A1` | read shunt |
+| ADS1 | `0x48` | `A2-A3` | set shunt |
+| ADS2 | `0x49` | `A0-A1` | reset / VDDA2 shunt |
+
+Important finding: ADS2 was expected in older code at `0x4A`, but hardware responded at `0x49`.
+
+ADC configuration:
+
+- Gain: `GAIN_SIXTEEN`
+- Data rate: `RATE_ADS1115_475SPS`
+- Conversion scale: `0.0078125 mV/count`
+- Shunt resistance: `1000 ohm`
+
+For a 1 kOhm shunt:
+
+```text
+I_shunt_uA = V_shunt_mV
+```
+
+This means 1 mV measured across the shunt corresponds to 1 uA of current.
+
+## Saleae Probe Validation
+
+Before the packet swap experiment, a DAC smoke test checked the new logic analyzer probe locations.
+
+| Saleae channel | Probed node | Observed max during 0.5 V smoke |
+|---|---|---:|
+| LA2 / A2 | GPIO33 / Vcc_read probe | `0.510 V` |
+| LA3 / A3 | VDDA2 / Vcc_reset probe | `0.521 V` |
+
+This confirmed that the probe locations could see the expected voltage steps.
+
+## Saleae Packet Voltage Measurements
+
+After reconnecting `LA1 / A1` to GPIO27, which is the probe point for the `dac[2]` read path, a post-swap `RSRR` run was captured with Saleae analog channels `A0-A15` at `31.25 kS/s`. The paired Teensy serial log confirmed:
+
+```text
+RSRR_BEGIN read_mV=1700 set_mV=500 reset_mV=500 hold_ms=150
+```
+
+Packet voltage observations:
+
+| Packet voltage | Firmware target | Firmware DAC path | Saleae observation | Measured Saleae value | Note |
+|---|---:|---|---|---:|---|
+| READ1 | `1.700 V` | `dac[2]` | `A1 / LA1`, GPIO27 / `dac[2]` read-path probe | mean `1.705 V`, max `1.715 V`, width `153.12 ms` | Direct read-path measurement after moving LA1 to GPIO27. |
+| SET | `0.500 V` | `dac[0]` | `A2 / LA2`, GPIO33 set-path probe | mean `0.499 V`, max `0.505 V`, width `153.12 ms` | Direct set-path measurement. |
+| READ2 | `1.700 V` | `dac[2]` | `A1 / LA1`, GPIO27 / `dac[2]` read-path probe | mean `1.705 V`, max `1.715 V`, width `153.12 ms` | Second read packet matches READ1. |
+| RESET | `0.500 V` | `dac[5]` | `A3 / LA3`, VDDA2 / Vcc_reset probe | mean `0.505 V`, max `0.521 V`, width `153.15 ms` | Direct reset-probe measurement. |
+
+The packet order on Saleae was `A1 read`, `A2 set`, `A1 read`, `A3 reset`, matching the swapped firmware command order. `A11` still sits around `1.66 V` during the full `A0-A15` capture, but it is an unprofiled analog view of the digital/XCLK-connected channel and is not the read packet.
+
+Paired ADC current result from the same LA1/GPIO27 rerun:
+
+| Packet | Read shunt peak delta | Set shunt peak delta | Reset shunt peak delta | Observation |
+|---|---:|---:|---:|---|
+| READ1 | `1.0703 uA` | `0.1328 uA` | `0.5781 uA` | read shunt is the dominant read/set response |
+| SET | `0.0937 uA` | `0.3984 uA` | `0.7344 uA` | set shunt is the dominant read/set response |
+| READ2 | `1.1406 uA` | `0.1016 uA` | `0.3516 uA` | read shunt is again the dominant read/set response |
+| RESET | `0.0703 uA` | `0.1719 uA` | `1.3281 uA` | reset shunt is the dominant response |
+
+## Saleae Analog Voltage Snapshot
+
+The table below uses the full `A0-A15` Saleae capture taken during the LA1/GPIO27 post-swap RSRR run. Values are min / mean / max across the 5.2 s capture, so `A1`, `A2`, and `A3` include the packet pulse windows.
+
+| Saleae channel | Bench label | Min | Mean | Max | Note |
+|---|---|---:|---:|---:|---|
+| A0 | Profile `Vcc_read` / possible packet path | `-0.077 V` | `0.008 V` | `0.098 V` | No packet pulse seen. |
+| A1 | LA1 GPIO27 / `dac[2]` read-path probe | `0.003 V` | `0.107 V` | `1.715 V` | Two read pulse segment means: `1.705 V`, `1.705 V`. |
+| A2 | LA2 GPIO33 set-path probe | `-0.010 V` | `0.018 V` | `0.505 V` | Set pulse segment mean `0.499 V`. |
+| A3 | LA3 VDDA2 / Vcc_reset probe | `-0.004 V` | `0.023 V` | `0.521 V` | Reset pulse segment mean `0.505 V`. |
+| A4 | Iref / Vcc_wl_reset profile-dependent | `0.495 V` | `0.502 V` | `0.510 V` | Steady analog rail. |
+| A5 | Unprofiled / digital reset-connected channel | `2.999 V` | `3.026 V` | `3.040 V` | Digital-connected, not treated as an analog bias rail. |
+| A6 | VDDc2 / Vccd2 | `2.091 V` | `2.107 V` | `2.122 V` | Steady analog rail. |
+| A7 | Vcomp | `0.899 V` | `0.908 V` | `0.915 V` | Steady analog rail. |
+| A8 | Unprofiled | `-0.005 V` | `0.015 V` | `0.036 V` | No packet pulse seen. |
+| A9 | Unprofiled | `-0.003 V` | `0.017 V` | `0.038 V` | No packet pulse seen. |
+| A10 | Unprofiled | `0.020 V` | `0.043 V` | `0.061 V` | No packet pulse seen. |
+| A11 | Unprofiled / digital XCLK-connected channel | `1.478 V` | `1.663 V` | `1.846 V` | Analog view of digital activity, not the read packet voltage. |
+| A12 | Vbias | `1.590 V` | `1.601 V` | `1.611 V` | Steady analog rail. |
+| A13 | Bias_comp2 | `0.605 V` | `0.613 V` | `0.621 V` | Steady analog rail. |
+| A14 | dc_bias | `0.989 V` | `0.998 V` | `1.005 V` | Steady analog rail. |
+| A15 | VDDa1 | `3.023 V` | `3.037 V` | `3.054 V` | Monitor rail; below the nominal `5.0 V` firmware target. |
+
+## Firmware Method
+
+A new `RSRR` command was added to the Teensy firmware.
+
+```text
+RSRR
+RSRR <read_mV> <set_mV> <reset_mV> <hold_ms>
+```
+
+For each packet:
+
+1. Sample all three shunts before driving the packet.
+2. Drive the packet DAC output.
+3. Keep sampling all three shunts until the packet window ends.
+4. Turn the packet DAC back off.
+5. Print a `PACKET_SUMMARY` line.
+
+The summary reports:
+
+- baseline current
+- final current
+- final delta from baseline
+- min/max span
+- peak absolute delta from baseline
+
+Note: ADS1115 conversion time is milliseconds, so this monitor can characterize packet windows that are held for milliseconds. It cannot resolve a true 10 us pulse waveform directly.
+
+## Before Swap
+
+Firmware mapping before the swap:
+
+| Packet | DAC channel driven |
+|---|---:|
+| READ1 / READ2 | `dac[0]` |
+| SET | `dac[2]` |
+| RESET | `dac[5]` |
+
+Run command:
+
+```text
+RSRR
+```
+
+Effective values:
+
+- read packet: `1700 mV`
+- set packet: `500 mV`
+- reset packet: `500 mV`
+- hold time: `150 ms`
+- samples per packet: `15`
+
+Peak current delta from packet baseline:
+
+| Packet | Read shunt peak delta | Set shunt peak delta | Reset shunt peak delta | Observation |
+|---|---:|---:|---:|---|
+| READ1 | `0.1172 uA` | `1.0000 uA` | `0.1797 uA` | read packet mostly appeared on set shunt |
+| SET | `0.1250 uA` | `0.1250 uA` | `0.3594 uA` | set packet did not dominate set shunt |
+| READ2 | `0.0859 uA` | `1.0859 uA` | `0.2187 uA` | read packet again mostly appeared on set shunt |
+| RESET | `0.0937 uA` | `0.0937 uA` | `1.1875 uA` | reset packet appeared on reset shunt |
+
+Conclusion before swap:
+
+The reset packet was routed correctly, but read packets were producing their strongest current change on the set shunt. This indicated that the read and set packet DAC routes were swapped.
+
+## After Swap
+
+Firmware mapping after the swap:
+
+| Packet | DAC channel driven |
+|---|---:|
+| READ1 / READ2 | `dac[2]` |
+| SET | `dac[0]` |
+| RESET | `dac[5]` |
+
+Run command:
+
+```text
+RSRR
+```
+
+Effective values:
+
+- read packet: `1700 mV`
+- set packet: `500 mV`
+- reset packet: `500 mV`
+- hold time: `150 ms`
+- samples per packet: `15`
+
+Peak current delta from packet baseline:
+
+| Packet | Read shunt peak delta | Set shunt peak delta | Reset shunt peak delta | Observation |
+|---|---:|---:|---:|---|
+| READ1 | `0.1875 uA` | `0.0781 uA` | `0.2266 uA` | read shunt now larger than set shunt |
+| SET | `0.0625 uA` | `0.3984 uA` | `0.3594 uA` | set shunt now strongest among read/set shunts |
+| READ2 | `0.1641 uA` | `0.1016 uA` | `0.3359 uA` | read shunt remains larger than set shunt |
+| RESET | `0.0859 uA` | `0.0703 uA` | `0.9844 uA` | reset packet remains strongest on reset shunt |
+
+Conclusion after swap:
+
+The read/set packet routing is now consistent with the shunt monitor:
+
+- read packets no longer produce their dominant read/set response on the set shunt
+- set packet produces the strongest read/set response on the set shunt
+- reset packet remains correctly visible on the reset / VDDA2 shunt
+
+The reset shunt still shows background movement during read packets, so treat it as a monitored channel rather than a perfectly isolated indicator.
+
+## Source Logs
+
+Remote source data:
+
+| Run | Path |
+|---|---|
+| Conservative all-0.5 V smoke before swap | `/home/ubuntu-24-04/saleae-api/captures/rsrr-adc-monitor-20260802-143743/summary.json` |
+| Default RSRR before swap | `/home/ubuntu-24-04/saleae-api/captures/rsrr-adc-monitor-default-20260802-143815/summary.json` |
+| Default RSRR after swap | `/home/ubuntu-24-04/saleae-api/captures/rsrr-adc-monitor-swapped-20260802-144403/summary.json` |
+| Saleae A2/A3 probe validation | `/home/ubuntu-24-04/saleae-api/captures/adc-dac-shunt-smoke-a2a3-only-20260802-142541/summary.json` |
+| Post-swap RSRR Saleae A0-A15 voltage capture | `/home/ubuntu-24-04/saleae-api/captures/rsrr-saleae-a0-a15-startedfirst-20260802-153149/summary.json` |
+| Post-swap RSRR Saleae A0-A15 serial log | `/home/ubuntu-24-04/saleae-api/captures/rsrr-saleae-a0-a15-startedfirst-20260802-153149/serial.log` |
+| Corrected LA1/GPIO27 post-swap RSRR Saleae A0-A15 voltage capture | `/home/ubuntu-24-04/saleae-api/captures/rsrr-saleae-a0-a15-la1-gpio27-20260802-154424/summary.json` |
+| Corrected LA1/GPIO27 post-swap RSRR serial log | `/home/ubuntu-24-04/saleae-api/captures/rsrr-saleae-a0-a15-la1-gpio27-20260802-154424/serial.log` |
+| ADC serial smoke validation | `/home/ubuntu-24-04/saleae-api/captures/adc-dac-shunt-smoke-20260802-142222/serial_adc.log` |
+
+## Current Firmware State
+
+The remote Teensy was flashed with the swapped RSRR mapping after the experiment.
+
+The RSRR command now uses:
+
+```text
+READ1 -> dac[2]
+SET   -> dac[0]
+READ2 -> dac[2]
+RESET -> dac[5]
+```
+
+ADS2 is initialized at `0x49`.
