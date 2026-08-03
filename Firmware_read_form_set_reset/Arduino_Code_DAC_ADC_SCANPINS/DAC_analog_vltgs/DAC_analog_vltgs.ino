@@ -379,9 +379,9 @@ void setup() {
   // ADS1115 Initialization
   Wire.begin();
   ads1.setGain(GAIN_SIXTEEN);
-  ads1.setDataRate(RATE_ADS1115_475SPS);
+  ads1.setDataRate(RATE_ADS1115_860SPS);
   ads2.setGain(GAIN_SIXTEEN);
-  ads2.setDataRate(RATE_ADS1115_475SPS);
+  ads2.setDataRate(RATE_ADS1115_860SPS);
   // ads1.setGain(GAIN_TWO);  // ±1.024 V differential range
   // ads1.setDataRate(RATE_ADS1115_16SPS);
 

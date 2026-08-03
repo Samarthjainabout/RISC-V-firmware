@@ -18,7 +18,7 @@ This repository contains firmware and utilities for controlling a ReRAM test set
 
 - Controller: Teensy 4.1 over USB serial.
 - DAC interface: DAC81416-style DAC access through `DAC_read.h`.
-- ADC: ADS1115 at I2C address `0x48` using `GAIN_SIXTEEN` and `RATE_ADS1115_475SPS`.
+- ADC: ADS1115 at I2C address `0x48` using `GAIN_SIXTEEN` and `RATE_ADS1115_860SPS`.
 - Shunt resistor: `1000 Ohm`.
 
 ## Software Requirements

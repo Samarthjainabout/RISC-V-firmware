@@ -62,13 +62,13 @@ void setup() {
   scanI2c();
 
   ads1.setGain(GAIN_SIXTEEN);
-  ads1.setDataRate(RATE_ADS1115_475SPS);
+  ads1.setDataRate(RATE_ADS1115_860SPS);
   ads1Ok = ads1.begin(ADS1_ADDR, &Wire);
   Serial.print("ADS1 0x48 init: ");
   Serial.println(ads1Ok ? "OK" : "FAIL");
 
   ads2.setGain(GAIN_SIXTEEN);
-  ads2.setDataRate(RATE_ADS1115_475SPS);
+  ads2.setDataRate(RATE_ADS1115_860SPS);
   ads2Ok = ads2.begin(ADS2_ADDR, &Wire);
   Serial.print("ADS2 0x49 init: ");
   Serial.println(ads2Ok ? "OK" : "FAIL");
