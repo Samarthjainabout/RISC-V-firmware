@@ -168,6 +168,55 @@ The summary reports:
 
 Note: ADS1115 conversion time is milliseconds, so this monitor can characterize packet windows that are held for milliseconds. It cannot resolve a true 10 us pulse waveform directly.
 
+## Wishbone Packet Definitions
+
+The read, set, and reset packet names in this report refer to logical ReRAM/X1 command windows. In the Caravel RISC-V Wishbone firmware, those commands are sent as 32-bit writes to the user-project Wishbone address:
+
+```c
+#define NEURO_ADDR 0x30000004
+REG32(NEURO_ADDR) = <packet_word>;
+```
+
+The DAC swap changed which Teensy DAC rail was driven/monitored during each logical packet window. It did not change the Wishbone command words sent by the Caravel firmware.
+
+Common setup/config writes used by the `set_mode_wb` and `reset_mode_wb` firmware before the operation packet:
+
+| Order | WB write | Purpose |
+|---:|---:|---|
+| 1 | `REG32(0x30000004) = 0x00036472` | target-set configuration |
+| 2 | `REG32(0x30000004) = 0x462B000B` | target-reset configuration |
+| 3 | `REG32(0x30000004) = 0x44001405` | timing/configuration |
+
+Operation packet words in the checked-in `Firmware_wishbone` mode files:
+
+| Logical packet | WB transaction | Packet meaning |
+|---|---:|---|
+| READ | `REG32(0x30000004) = 0x500888FF` | read command used after set/reset operation firmware |
+| SET | `REG32(0x30000004) = 0xD00888A2` | program-set command |
+| RESET | `REG32(0x30000004) = 0x10088806` | program-reset command |
+
+DAC rail mapping before and after the Teensy swap:
+
+| Logical packet | WB word | Before swap DAC rail | After swap DAC rail | Current READ3 firmware rail |
+|---|---:|---:|---:|---:|
+| READ | `0x500888FF` | `dac[0]` | `dac[2]` | `dac[2]` for `READ1`, `READ2`, and `READ3` |
+| SET | `0xD00888A2` | `dac[2]` | `dac[0]` | `dac[0]` |
+| RESET | `0x10088806` | `dac[5]` | `dac[5]` | `dac[5]` |
+
+Current monitored sequence:
+
+```text
+READ1 -> SET -> READ2 -> RESET -> READ3
+```
+
+In WB terms, using the checked-in `set_mode_wb` / `reset_mode_wb` packet words, that logical sequence is:
+
+```text
+0x500888FF -> 0xD00888A2 -> 0x500888FF -> 0x10088806 -> 0x500888FF
+```
+
+Important packet-format note: the newer PARTCL/X1 documentation in this repository also describes a corrected row/column packet builder. For row `0`, column `0`, that corrected format gives examples like `READ = 0x400000FF`, `SET = 0xC00000A2`, and `RESET = 0x00000006`. The `Firmware_wishbone` mode files used in this bench history still contain the older fixed words listed above.
+
 ## Before Swap
 
 Firmware mapping before the swap:
