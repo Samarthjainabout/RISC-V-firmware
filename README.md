@@ -83,6 +83,17 @@ during idle, shifting, after-shift, and final idle. The old cocotb comment says
 `ScanInDR` may go high after completion, but the actual Python code drives it
 low.
 
+## Current DAC Wiring Notes
+
+The DAC channel names below are the logical rail names from the setup, but the
+current bench wiring is not one-to-one for every rail.
+
+| DAC channel | Logical rail name | Current bench status |
+|---:|---|---|
+| DAC[1] | Vcc_wl_read | Not connected in the current setup |
+| DAC[3] | Vcc_wl_set | Connected; currently programmed to 0 V idle |
+| DAC[4] | Vcc_wl_reset | Not connected in the current setup |
+
 ## Remote Target
 
 ```text
