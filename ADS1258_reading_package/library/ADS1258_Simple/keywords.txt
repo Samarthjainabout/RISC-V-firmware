@@ -1,0 +1,13 @@
+ADS1258Simple	KEYWORD1
+ChannelData	KEYWORD2
+begin	KEYWORD2
+reset	KEYWORD2
+readRegister	KEYWORD2
+writeRegister	KEYWORD2
+readChannel	KEYWORD2
+configureAutoScanSingleEnded	KEYWORD2
+configureAutoScanDifferential	KEYWORD2
+configureFixedChannel	KEYWORD2
+codeToVoltage	KEYWORD2
+channelName	KEYWORD2
+
