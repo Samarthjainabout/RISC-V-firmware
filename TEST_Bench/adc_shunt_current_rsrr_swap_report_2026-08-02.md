@@ -383,3 +383,68 @@ FINAL -> dac[2] = 0 mV, dac[0] = 0 mV, dac[5] = 0 mV
 ```
 
 ADS2 is initialized at `0x49`.
+
+## Cadence Simulation Results
+
+The following results were obtained from Cadence simulations for different combinations of VCC_SET and VCC_RESET. The shunt currents were measured during the READ, SET, and RESET operations to verify the expected resistive-state behavior.
+
+1. VCC_SET = 0.5 V, VCC_RESET = 0.5 V
+   
+Operation	 READ Shunt 	SET Shunt 	RESET Shunt
+READ1	     171.4 nA	    12.3 pA	    4.4 pA
+SET	       7.2 pA	      504 pA	    4.4 pA
+READ2	     171.4 nA	    12.3 pA	    4.4 pA
+RESET      2.7 pA	      9.9 pA	    50.3 nA
+READ3	     171.4 nA	    12.3 pA	    4.4 pA
+
+
+2. VCC_SET = 0.5 V, VCC_RESET = 1.0 V
+   
+Operation	  READ Shunt	  SET Shunt  	RESET Shunt
+READ1	      171.4 nA	    12.3 pA	    2.4 pA
+SET	        5.4 pA	      504 pA	    2.4 pA
+READ2	      171.4 nA	    12.3 pA	    2.4 pA
+RESET	      1.7 pA	      10.9 pA	    100.6 nA
+READ3	      171.03 nA	    12.3 pA	    2.4 pA
+
+
+3. VCC_SET = 1.0 V, VCC_RESET = 1.0 V
+   
+Operation	  READ Shunt	  SET Shunt	  RESET Shunt
+READ1	      171.4 nA	    6.3 pA	    2.4 pA
+SET	        4.4 pA	      1.2 nA	    2.4 pA
+READ2	      171.04 nA	    6.3 pA	    2.4 pA
+RESET	      1.7 pA	      4.9 pA	    100.6 nA
+READ3	      171.03 nA	    6.3 pA	    2.4 pA
+
+
+4. VCC_SET = 3.0 V, VCC_RESET = 3.0 V
+
+Operation	  READ Shunt	  SET Shunt	  RESET Shunt
+READ1	      171.4 nA	    18.0 pA	    6.0 pA
+SET	        4.4 pA	      1.8 nA	    6.0 pA
+READ2	      171.04 nA	    18.0 pA	    6.0 pA
+RESET	      2.6 pA	      15.0 pA	    301.2 nA
+READ3	      171.03 nA	    18.0 pA	    6.0 pA
+
+Summary
+
+The Cadence simulation results demonstrate the expected distinction between the READ, SET, and RESET states:
+
+During the READ operation, the READ shunt current remains approximately 171 nA, while the SET and RESET shunt currents remain in the pA range.
+
+During the SET operation, the SET shunt current increases significantly, reaching:
+504 pA at VCC_SET = 0.5 V
+1.2 nA at VCC_SET = 1.0 V
+1.8 nA at VCC_SET = 3.0 V
+
+During the RESET operation, the RESET shunt current increases significantly, reaching:
+50.3 nA at VCC_RESET = 0.5 V
+100.6 nA at VCC_RESET = 1.0 V
+301.2 nA at VCC_RESET = 3.0 V
+
+After SET or RESET, the subsequent READ operations return to approximately 171 nA, indicating that the programmed state can be read after the write operation.
+
+The results show that increasing the corresponding SET/RESET supply voltage increases the current observed during the respective operation.
+
+These simulations were performed in Cadence to verify the electrical behavior of the device under different SET and RESET supply conditions.
