@@ -1,8 +1,7 @@
 // Teensy 4.1 usb port ----> usb;xxxxxxx/4/0/2
 
 #include "DAC_read.h"
-#include <Adafruit_ADS1X15.h>
-#include <Wire.h>
+#include <ADS1258_Simple.h>
 #include<math.h>
 #include "TeensyThreads.h"
 #include <WS2812Serial.h>
@@ -36,14 +35,31 @@
 //   Teensy 4.0:  1, 8, 14, 17, 20, 24, 29, 39
 //   Teensy 4.1:  1, 8, 14, 17, 20, 24, 29, 35, 47, 53
 
-Adafruit_ADS1115 ads1, ads2;
-static const uint8_t ADS1_ADDR = 0x48;
-static const uint8_t ADS2_ADDR = 0x49;
+static const uint8_t PIN_ADS_CS = 10;
+static const uint8_t PIN_ADS_DRDY = 14;
+static const uint8_t PIN_ADS_START = 15;
+static const uint8_t PIN_ADS_RESET = 16;
+static const uint8_t PIN_ADS_PWDN = 17;
+static const uint8_t ADS1258_DIFF_INDEX_READ = 1;
+static const uint8_t ADS1258_DIFF_INDEX_SET = 0;
+static const uint8_t ADS1258_DIFF_INDEX_RESET = 2;
+static const uint8_t ADS1258_DIFF_INDEX_AUX = 3;
+static const uint8_t ADS1258_DIFF_MASK = 0x0F;
+static const uint8_t ADS1258_MONITOR_MASK =
+  (1 << ADS1258_DIFF_INDEX_READ) |
+  (1 << ADS1258_DIFF_INDEX_SET) |
+  (1 << ADS1258_DIFF_INDEX_RESET);
+static const float ADS1258_VREF_VOLTS = 2.500f; // Onboard/reference-output voltage at VREFP-VREFN, not AVDD-AVSS.
+static const unsigned long ADS1258_SAMPLE_TIMEOUT_US = 3000;
 static const int MONITOR_DEFAULT_SET_MV = 500;
 static const int MONITOR_DEFAULT_RESET_MV = 500;
 static const unsigned long MONITOR_DEFAULT_HOLD_MS = 150;
-bool ads1Ok = false;
-bool ads2Ok = false;
+ADS1258Simple ads1258(PIN_ADS_CS, PIN_ADS_DRDY, SPI, 1000000UL, SPI_MODE3);
+bool ads1258Ok = false;
+uint8_t ads1258Id = 0;
+int32_t ads1258DiffRaw[4] = {0, 0, 0, 0};
+float ads1258DiffMv[4] = {0.0f, 0.0f, 0.0f, 0.0f};
+bool ads1258DiffSeen[4] = {false, false, false, false};
 byte drawingMemory1[4];         //  4 bytes per LED for RGBW
 byte drawingMemory2[4];         //  4 bytes per LED for RGBW
 DMAMEM byte displayMemory1[16];
@@ -61,10 +77,6 @@ float setECC_v = 0, resetECC_v = 2.56; // The set & reset ECC voltage pulse ampl
 float read_v = 1.7; // Vcc_read(min =1.3, max = 1.7)
 float reRAM_res = 0, shunt_res = 1000; // Measured resistance of the ReRAM during the last read cycle & Shunt Resistor Ohm
 float currentSense_gain = 1.0; // Transimpedance Amp V/mA
-float ads_diff_multiplier = 0.0078125F; //mV for ADC count for GAIN_SIXTEEN
-//float ads_diff_multiplier = 0.125F; // mV per ADC count for GAIN_ONE
-//float ads_diff_multiplier = 0.0625F;  // mV per ADC count for GAIN_TWO
-//float ads_diff_multiplier = 0.03125F;  // mV per ADC count for GAIN_FOUR
 //float marginHRSL = 0.05, marginHRSH = 0.05; // HRS Low & High limits for a bounded condition checking.
 //float marginLRSL = 0.05, marginLRSH = 0.05; // LRS Low & High limits for a bounded condition checking.
 float marginHRSL = 0.025, marginHRSH = 0.025; // HRS Low & High limits for a bounded condition checking.
@@ -92,8 +104,8 @@ int read_mv = 1000 * read_v; // Conversion FP32 to int.
 int setmv = 1000 * setv, resetmv = 1000 * resetv; // Conversion FP32 to int.
 int setECC_mv = 1000 * setECC_v, resetECC_mv = 1000 * resetECC_v;
 int shunt_c = 1 / shunt_res; // Shunt conductance value as uC have trouble dividing.
-int16_t ads_c0, ads_c1, ads_c2, ads_c3; //ADS1115 16b RAW Transfer Buffer in unsigned int 16b.
-float ads_mv0, ads_mv1, ads_mv2, ads_mv3; // ADS1115 Converted Voltage in mV.
+int32_t ads_c0, ads_c1, ads_c2, ads_c3; // ADS1258 24b RAW transfer buffer.
+float ads_mv0, ads_mv1, ads_mv2, ads_mv3; // ADS1258 converted differential voltage in mV.
 float vwl1, vwl2, vwl3, vwl4; // Export variables for U1WL1, U2WL1, U3WL1, U4WL1
 float vu1bl1, vu1bl2, vu2bl1, vu2bl2, vu3bl1, vu3bl2, vu4bl1, vu4bl2, vu1wl1, vu2wl1, vu3wl1, vu4wl1, vu1sl1, vu2sl1, vu3sl1, vu4sl1; // Export variables applied set voltages of U1BL1 -> U2BL2 & U1SL1 -> U2SL1
 float vSh_u1bl1, vSh_u1bl2, vSh_u2bl1, vSh_u2bl2, vSh_u3bl1, vSh_u3bl2, vSh_u4bl1, vSh_u4bl2,
@@ -124,6 +136,13 @@ float mvToShuntUa(float mv) {
   return (mv * 1000.0f) / shunt_res;
 }
 
+void printHex2(uint8_t value) {
+  if (value < 0x10) {
+    Serial.print('0');
+  }
+  Serial.print(value, HEX);
+}
+
 int clampInt(int value, int lo, int hi) {
   if (value < lo) return lo;
   if (value > hi) return hi;
@@ -140,6 +159,157 @@ float absDelta(float current, float baseline) {
   return fabs(current - baseline);
 }
 
+int ads1258DiffIndexFromChannel(uint8_t channelId) {
+  if (channelId >= ADS1258Simple::CH_DIFF0 && channelId <= ADS1258Simple::CH_DIFF7) {
+    return channelId - ADS1258Simple::CH_DIFF0;
+  }
+  return -1;
+}
+
+uint8_t logicalAdcChannelToAds1258DiffIndex(uint8_t adc_ch) {
+  if (adc_ch == 1) return ADS1258_DIFF_INDEX_READ;
+  if (adc_ch == 2) return ADS1258_DIFF_INDEX_SET;
+  if (adc_ch == 3) return ADS1258_DIFF_INDEX_RESET;
+  return ADS1258_DIFF_INDEX_AUX;
+}
+
+void startAds1258Conversions() {
+  digitalWrite(PIN_ADS_START, HIGH);
+
+  // ADS1258EVM factory J3 commonly routes START through ADC GPIO0.
+  ads1258.writeRegister(ADS1258Simple::REG_GPIOC, 0xFE);
+  ads1258.writeRegister(ADS1258Simple::REG_GPIOD, 0x01);
+}
+
+bool refreshAds1258Differentials(uint8_t neededMask, unsigned long timeoutUs) {
+  if (!ads1258Ok) {
+    return false;
+  }
+
+  uint8_t seenMask = 0;
+  unsigned long startUs = micros();
+  while ((micros() - startUs) < timeoutUs) {
+    if (!ads1258.dataReady()) {
+      yield();
+      continue;
+    }
+
+    ADS1258Simple::ChannelData sample = ads1258.readChannel();
+    if (!sample.isNew) {
+      continue;
+    }
+
+    int diffIndex = ads1258DiffIndexFromChannel(sample.channelId);
+    if (diffIndex < 0 || diffIndex >= 4) {
+      continue;
+    }
+
+    ads1258DiffRaw[diffIndex] = sample.code;
+    ads1258DiffMv[diffIndex] = ads1258.codeToVoltage(sample.code, ADS1258_VREF_VOLTS) * 1000.0f;
+    ads1258DiffSeen[diffIndex] = true;
+    seenMask |= (1 << diffIndex);
+
+    if ((seenMask & neededMask) == neededMask) {
+      return true;
+    }
+  }
+
+  return (seenMask & neededMask) != 0;
+}
+
+bool readAds1258Differential(uint8_t diffIndex, int32_t &rawCode, float &millivolts) {
+  if (diffIndex >= 4 || !ads1258Ok) {
+    rawCode = 0;
+    millivolts = 0.0f;
+    return false;
+  }
+
+  uint8_t mask = 1 << diffIndex;
+  refreshAds1258Differentials(mask, ADS1258_SAMPLE_TIMEOUT_US);
+  if (!ads1258DiffSeen[diffIndex]) {
+    rawCode = 0;
+    millivolts = 0.0f;
+    return false;
+  }
+
+  rawCode = ads1258DiffRaw[diffIndex];
+  millivolts = ads1258DiffMv[diffIndex];
+  return true;
+}
+
+float resistanceFromShuntMv(float shuntMv) {
+  double currentMa = shuntMv / shunt_res;
+  double absCurrentMa = fabs(currentMa);
+  if (absCurrentMa < 0.000001) {
+    return 0.0f;
+  }
+  return (read_mv - fabs(shuntMv)) / absCurrentMa;
+}
+
+bool initAds1258() {
+  pinMode(PIN_ADS_START, OUTPUT);
+  pinMode(PIN_ADS_RESET, OUTPUT);
+  pinMode(PIN_ADS_PWDN, OUTPUT);
+  pinMode(PIN_ADS_DRDY, INPUT);
+
+  digitalWrite(PIN_ADS_START, LOW);
+  digitalWrite(PIN_ADS_PWDN, HIGH);
+  digitalWrite(PIN_ADS_RESET, HIGH);
+
+  ads1258.begin(false);
+
+  digitalWrite(PIN_ADS_RESET, LOW);
+  delayMicroseconds(10);
+  digitalWrite(PIN_ADS_RESET, HIGH);
+  delay(10);
+  ads1258.reset();
+  delay(10);
+
+  ads1258Id = ads1258.readId();
+  ads1258Ok = ads1258.isAds1258();
+
+  Serial.print("ADS1258_ID_REGISTER=0x");
+  printHex2(ads1258Id);
+  Serial.println();
+  Serial.print("ADS1258_ID_CHECK=");
+  Serial.println(ads1258Ok ? "PASS" : "FAIL");
+
+  ads1258.configureAutoScanDifferential(
+    ADS1258_DIFF_MASK,
+    ADS1258Simple::DRATE_23739_SPS
+  );
+
+  Serial.print("ADS1258_CONFIG0=0x");
+  printHex2(ads1258.readRegister(ADS1258Simple::REG_CONFIG0));
+  Serial.println();
+  Serial.print("ADS1258_CONFIG1=0x");
+  printHex2(ads1258.readRegister(ADS1258Simple::REG_CONFIG1));
+  Serial.println();
+  Serial.print("ADS1258_MUXDIF=0x");
+  printHex2(ads1258.readRegister(ADS1258Simple::REG_MUXDIF));
+  Serial.println();
+
+  if (ads1258Ok) {
+    startAds1258Conversions();
+    delay(20);
+    refreshAds1258Differentials(ADS1258_MONITOR_MASK, 10000);
+  }
+
+  Serial.print("ADS1258_GPIOD=0x");
+  printHex2(ads1258.readRegister(ADS1258Simple::REG_GPIOD));
+  Serial.println();
+  Serial.print("ADS1258_DRDY_AFTER_START=");
+  Serial.println(digitalRead(PIN_ADS_DRDY));
+  Serial.print("ADS1258_MONITOR_SEEN read=");
+  Serial.print(ads1258DiffSeen[ADS1258_DIFF_INDEX_READ] ? "YES" : "NO");
+  Serial.print(" set=");
+  Serial.print(ads1258DiffSeen[ADS1258_DIFF_INDEX_SET] ? "YES" : "NO");
+  Serial.print(" reset=");
+  Serial.println(ads1258DiffSeen[ADS1258_DIFF_INDEX_RESET] ? "YES" : "NO");
+
+  return ads1258Ok;
+}
+
 void setPacketDacsZero() {
   dac_write(dac[0], 0);
   dac_write(dac[2], 0);
@@ -153,9 +323,10 @@ void writeDacMilliVolts(uint8_t channel, int mv) {
 
 ShuntCurrents readMonitoredShunts() {
   ShuntCurrents sample;
-  sample.readMv = ads1Ok ? ads1.readADC_Differential_0_1() * ads_diff_multiplier : 0.0f;
-  sample.setMv = ads1Ok ? ads1.readADC_Differential_2_3() * ads_diff_multiplier : 0.0f;
-  sample.resetMv = ads2Ok ? ads2.readADC_Differential_0_1() * ads_diff_multiplier : 0.0f;
+  refreshAds1258Differentials(ADS1258_MONITOR_MASK, ADS1258_SAMPLE_TIMEOUT_US);
+  sample.readMv = (ads1258Ok && ads1258DiffSeen[ADS1258_DIFF_INDEX_READ]) ? ads1258DiffMv[ADS1258_DIFF_INDEX_READ] : 0.0f;
+  sample.setMv = (ads1258Ok && ads1258DiffSeen[ADS1258_DIFF_INDEX_SET]) ? ads1258DiffMv[ADS1258_DIFF_INDEX_SET] : 0.0f;
+  sample.resetMv = (ads1258Ok && ads1258DiffSeen[ADS1258_DIFF_INDEX_RESET]) ? ads1258DiffMv[ADS1258_DIFF_INDEX_RESET] : 0.0f;
   sample.readUa = mvToShuntUa(sample.readMv);
   sample.setUa = mvToShuntUa(sample.setMv);
   sample.resetUa = mvToShuntUa(sample.resetMv);
@@ -218,6 +389,45 @@ void printShuntSnapshot(const char *label) {
   Serial.print(sample.setUa, 4);
   Serial.print(" reset_uA=");
   Serial.println(sample.resetUa, 4);
+}
+
+void printAds1258Status(const char *label) {
+  ShuntCurrents sample = readMonitoredShunts();
+
+  Serial.print("ADS1258_STATUS label=");
+  Serial.print(label);
+  Serial.print(" id=0x");
+  printHex2(ads1258Id);
+  Serial.print(" check=");
+  Serial.print(ads1258Ok ? "PASS" : "FAIL");
+  Serial.print(" config0=0x");
+  printHex2(ads1258.readRegister(ADS1258Simple::REG_CONFIG0));
+  Serial.print(" config1=0x");
+  printHex2(ads1258.readRegister(ADS1258Simple::REG_CONFIG1));
+  Serial.print(" muxdif=0x");
+  printHex2(ads1258.readRegister(ADS1258Simple::REG_MUXDIF));
+  Serial.print(" gpiod=0x");
+  printHex2(ads1258.readRegister(ADS1258Simple::REG_GPIOD));
+  Serial.print(" drdy=");
+  Serial.print(digitalRead(PIN_ADS_DRDY));
+  Serial.print(" seen_read=");
+  Serial.print(ads1258DiffSeen[ADS1258_DIFF_INDEX_READ] ? "YES" : "NO");
+  Serial.print(" seen_set=");
+  Serial.print(ads1258DiffSeen[ADS1258_DIFF_INDEX_SET] ? "YES" : "NO");
+  Serial.print(" seen_reset=");
+  Serial.print(ads1258DiffSeen[ADS1258_DIFF_INDEX_RESET] ? "YES" : "NO");
+  Serial.print(" read_mV=");
+  Serial.print(sample.readMv, 6);
+  Serial.print(" read_uA=");
+  Serial.print(sample.readUa, 6);
+  Serial.print(" set_mV=");
+  Serial.print(sample.setMv, 6);
+  Serial.print(" set_uA=");
+  Serial.print(sample.setUa, 6);
+  Serial.print(" reset_mV=");
+  Serial.print(sample.resetMv, 6);
+  Serial.print(" reset_uA=");
+  Serial.println(sample.resetUa, 6);
 }
 
 void printPacketSummary(const char *packetName, const MonitorStats &stats) {
@@ -332,12 +542,12 @@ void runReadSetReadResetSequence(const String &cmd) {
   Serial.print(seqResetMv);
   Serial.print(" hold_ms=");
   Serial.print(holdMs);
-  Serial.print(" ads1=0x");
-  Serial.print(ADS1_ADDR, HEX);
-  Serial.print(ads1Ok ? ":OK" : ":FAIL");
-  Serial.print(" ads2=0x");
-  Serial.print(ADS2_ADDR, HEX);
-  Serial.println(ads2Ok ? ":OK" : ":FAIL");
+  Serial.print(" ads1258_id=0x");
+  printHex2(ads1258Id);
+  Serial.print(ads1258Ok ? ":OK" : ":FAIL");
+  Serial.print(" diff_mask=0x");
+  printHex2(ADS1258_DIFF_MASK);
+  Serial.println();
 
   // Hardware check showed the original read/set DAC packet paths were swapped.
   runMonitoredDacPacket("READ1", dac[2], seqReadMv, holdMs);
@@ -376,27 +586,8 @@ void setup() {
   pinMode(activeLed, OUTPUT);
   pinMode(faultLed, OUTPUT);
 
-  // ADS1115 Initialization
-  Wire.begin();
-  ads1.setGain(GAIN_SIXTEEN);
-  ads1.setDataRate(RATE_ADS1115_860SPS);
-  ads2.setGain(GAIN_SIXTEEN);
-  ads2.setDataRate(RATE_ADS1115_860SPS);
-  // ads1.setGain(GAIN_TWO);  // ±1.024 V differential range
-  // ads1.setDataRate(RATE_ADS1115_16SPS);
-
-  // ads2.setGain(GAIN_TWO);  // ±1.024 V differential range
-  // ads2.setDataRate(RATE_ADS1115_16SPS);
-  ads1Ok = ads1.begin(ADS1_ADDR, &Wire);
-  if (!ads1Ok) {
-    Serial.println("Failed to initialize ADS1.");
-    while (1);
-  }
-  ads2Ok = ads2.begin(ADS2_ADDR, &Wire);
-  Serial.print("ADS2 0x");
-  Serial.print(ADS2_ADDR, HEX);
-  Serial.print(" init: ");
-  Serial.println(ads2Ok ? "OK" : "FAIL");
+  // ADS1258 Initialization
+  initAds1258();
 
   // --- POWER-UP SEQUENCE ---
   // Option A: Start with all channels at 0V, then apply specific voltages
@@ -426,7 +617,10 @@ void loop(){
     return;
   }
 
-  if (command == "SET") {
+  if (command == "ADC?" || command == "ADS1258?" || command == "ADC") {
+            printAds1258Status("CMD");
+            command = "";
+        } else if (command == "SET") {
             mode = 1;
             //test_set(u2bl1, u2wl1, 0,0.9, 0.1, 0.7, 0.01, 10); //test_set(BL Chanel, WL Channel, BL_Start, BL_Stop, WL_Start, WL_Stop, No. of Iteration);
             for(float wl = 0; wl < 0.9; wl += 0.1){
@@ -740,83 +934,91 @@ float readPulse(uint8_t dac_ch, float rd_mV){ //Passing the dac channel will als
 }
 
 
-float readRes(uint8_t dac_ch, uint8_t adc_ch){ // Ch 1 -> A0-A1 Ch 2 -> A1-A2
+float readRes(uint8_t dac_ch, uint8_t adc_ch){ // Ch 1..4 -> ADS1258 DIFF0..DIFF3
   float res = 0.0;
+
+  if (adc_ch < 1 || adc_ch > 4) {
+    return res;
+  }
+
+  uint8_t diffIndex = logicalAdcChannelToAds1258DiffIndex(adc_ch);
+  int32_t raw = 0;
+  float shuntMv = 0.0f;
+  if (!readAds1258Differential(diffIndex, raw, shuntMv)) {
+    return res;
+  }
+
+  if (adc_ch == 1) {
+    ads_c0 = raw;
+    ads_mv0 = shuntMv;
+  } else if (adc_ch == 2) {
+    ads_c1 = raw;
+    ads_mv1 = shuntMv;
+  } else if (adc_ch == 3) {
+    ads_c2 = raw;
+    ads_mv2 = shuntMv;
+  } else {
+    ads_c3 = raw;
+    ads_mv3 = shuntMv;
+  }
+
+  double current = shuntMv / shunt_res; // mA
+  float currentUa = fabs(current) * 1000.0f;
+  float absShuntMv = fabs(shuntMv);
+  res = resistanceFromShuntMv(shuntMv);
+
   if( adc_ch == 1 ){
-  ads_c0 = ads1.readADC_Differential_0_1(); // ADC Call to Channel A0 Single Ended.
-  ads_mv0 = ads_c0 * ads_diff_multiplier; // Voltage across the shunt resistor
-  double current = ads_mv0 * (0.001); // Current passing via the shunt = V x 1/R[sh] (mA)
-  res = (read_mv - abs(ads_mv0)) / abs(current); // R[ReRAM] (Ohm) = Read Voltage (mV) - Shunt Voltage (mV) / Current Passing via the shunt. (mA)
-  if(dac_ch == u1wl1) {
-    //dac_pwrdwn(u1bl2);
-    iU1BL1 = abs(current) * 1000;
-    vRRAM_u1bl1 = read_mv - abs(ads_mv0);
-    vSh_u1bl1 = abs(ads_mv0);
-    res_u1bl1 = res;}
-  else if(dac_ch == u2bl1) {
-    //dac_pwrdwn(u1bl1);
-    iU1BL2 = abs(current) * 1000; 
-    vRRAM_u1bl2 = read_mv - abs(ads_mv0);
-    vSh_u1bl2 = abs(ads_mv0);
-    res_u1bl2 = res;
+    if(dac_ch == u1wl1) {
+      iU1BL1 = currentUa;
+      vRRAM_u1bl1 = read_mv - absShuntMv;
+      vSh_u1bl1 = absShuntMv;
+      res_u1bl1 = res;}
+    else if(dac_ch == u2bl1) {
+      iU1BL2 = currentUa;
+      vRRAM_u1bl2 = read_mv - absShuntMv;
+      vSh_u1bl2 = absShuntMv;
+      res_u1bl2 = res;
     }
   }
-    //Serial.print("Vsh:\t"); Serial.print(ads_mv0); Serial.print("mV"); Serial.print("\tIsh:\t"); Serial.print(current); Serial.println("mA");
   else if( adc_ch == 2 ){
-    ads_c1 = ads1.readADC_Differential_2_3(); // ADC Call to Channel A0 Single Ended.
-    ads_mv1 = ads_c1 * ads_diff_multiplier; // Voltage across the shunt resistor
-    double current = ads_mv1 * (0.001); // Current passing via the shunt = V x 1/R[sh] (mA)
-    res = (read_mv - abs(ads_mv1)) / abs(current); // R[ReRAM] (Ohm) = Read Voltage (mV) - Shunt Voltage (mV) / Current Passing via the shunt. (mA) 
-    if(dac_ch == u2bl1) { //dac_pwrdwn(u2bl2);
-      iU2BL1 = abs(current) * 1000; 
-      vRRAM_u2bl1 = read_mv - abs(ads_mv1);
-      vSh_u2bl1 = abs(ads_mv1);
+    if(dac_ch == u2bl1) {
+      iU2BL1 = currentUa;
+      vRRAM_u2bl1 = read_mv - absShuntMv;
+      vSh_u2bl1 = absShuntMv;
       res_u2bl1= res;
-      }
-    else if(dac_ch == u2bl2) { //dac_pwrdwn(u2bl1);
-      iU2BL2 = abs(current) * 1000;
-      vRRAM_u2bl2 = read_mv - abs(ads_mv1);
-      vSh_u2bl2 = abs(ads_mv1);
+    }
+    else if(dac_ch == u2bl2) {
+      iU2BL2 = currentUa;
+      vRRAM_u2bl2 = read_mv - absShuntMv;
+      vSh_u2bl2 = absShuntMv;
       res_u2bl2 = res;
     }
   }
   else if( adc_ch == 3 ){
-  ads_c2 = ads2.readADC_Differential_0_1(); // ADC Call to Channel A0 Single Ended.
-  ads_mv2 = ads_c2 * ads_diff_multiplier; // Voltage across the shunt resistor
-  double current = ads_mv2 * (0.001); // Current passing via the shunt = V x 1/R[sh] (mA)
-  res = (read_mv - abs(ads_mv2)) / abs(current); // R[ReRAM] (Ohm) = Read Voltage (mV) - Shunt Voltage (mV) / Current Passing via the shunt. (mA)
-  if(dac_ch == u1wl1) {  //// for set = u1wl1, read = u1bl2, reset = u2bl1
-    //dac_pwrdwn(u1bl2);
-    iU3BL1 = abs(current) * 1000;
-    vRRAM_u3bl1 = read_mv - abs(ads_mv2);
-    vSh_u3bl1 = abs(ads_mv2);
-    res_u3bl1 = res;}
-  else if(dac_ch == u2bl1) {
-    //dac_pwrdwn(u1bl1);
-    iU3BL2 = abs(current) * 1000; 
-    vRRAM_u3bl2 = read_mv - abs(ads_mv2);
-    vSh_u3bl2 = abs(ads_mv2);
-    res_u3bl2 = res;
+    if(dac_ch == u1wl1) {
+      iU3BL1 = currentUa;
+      vRRAM_u3bl1 = read_mv - absShuntMv;
+      vSh_u3bl1 = absShuntMv;
+      res_u3bl1 = res;}
+    else if(dac_ch == u2bl1) {
+      iU3BL2 = currentUa;
+      vRRAM_u3bl2 = read_mv - absShuntMv;
+      vSh_u3bl2 = absShuntMv;
+      res_u3bl2 = res;
     }
-    //Serial.print("Vsh:\t"); Serial.print(ads_mv0); Serial.print("mV"); Serial.print("\tIsh:\t"); Serial.print(current); Serial.println("mA");
   }
   else if( adc_ch == 4 ){
-    ads_c3 = ads2.readADC_Differential_2_3(); // ADC Call to Channel A0 Single Ended.
-    ads_mv3 = ads_c3 * ads_diff_multiplier; // Voltage across the shunt resistor
-    double current = ads_mv3 * (0.001); // Current passing via the shunt = V x 1/R[sh] (mA)
-    res = (read_mv - abs(ads_mv3)) / abs(current); // R[ReRAM] (Ohm) = Read Voltage (mV) - Shunt Voltage (mV) / Current Passing via the shunt. (mA) 
-    if(dac_ch == u1wl1) { // for set = u1wl1, read = u1bl2, reset = u2bl1
-      iU4BL1 = abs(current) * 1000; 
-      vRRAM_u4bl1 = read_mv - abs(ads_mv3);
-      vSh_u4bl1 = abs(ads_mv3);
+    if(dac_ch == u1wl1) {
+      iU4BL1 = currentUa;
+      vRRAM_u4bl1 = read_mv - absShuntMv;
+      vSh_u4bl1 = absShuntMv;
       res_u4bl1= res;}
-    else if(dac_ch == u2bl1) { //dac_pwrdwn(u2bl1);
-      iU4BL2 = abs(current) * 1000;
-      vRRAM_u4bl2 = read_mv - abs(ads_mv3);
-      vSh_u4bl2 = abs(ads_mv3);
+    else if(dac_ch == u2bl1) {
+      iU4BL2 = currentUa;
+      vRRAM_u4bl2 = read_mv - absShuntMv;
+      vSh_u4bl2 = absShuntMv;
       res_u4bl2 = res;
-      }
-    //Serial.print("Vsh:\t"); Serial.print(ads_mv1); Serial.print("mV"); Serial.print("\tIsh:\t"); Serial.print(current); Serial.println("mA");
+    }
   }
   return res;
 }
