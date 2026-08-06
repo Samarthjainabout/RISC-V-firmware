@@ -383,3 +383,6 @@ FINAL -> dac[2] = 0 mV, dac[0] = 0 mV, dac[5] = 0 mV
 ```
 
 ADS2 is initialized at `0x49`.
+
+## cadance simulation observation
+<img width="710" height="251" alt="image" src="https://github.com/user-attachments/assets/e45f19a5-3081-4bce-9d63-d67509bb839e" />
