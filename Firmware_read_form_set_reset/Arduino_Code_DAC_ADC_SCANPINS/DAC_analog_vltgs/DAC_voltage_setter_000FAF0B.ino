@@ -14,10 +14,10 @@
  *
  * DAC1 channel map from Setup_block_diagram:
  *   DAC[0]  -> Vcc_read       = 0.0 V at idle
- *   DAC[1]  -> Vcc_wl_read    = 0.0 V at idle
+ *   DAC[1]  -> Vcc_wl_read    = 1.7 V
  *   DAC[2]  -> Vcc_set        = 0.0 V at idle, through shunt
- *   DAC[3]  -> Vcc_wl_set     = 0.0 V at idle
- *   DAC[4]  -> Vcc_wl_reset   = 0.0 V at idle
+ *   DAC[3]  -> Vcc_wl_set     = 1.7 V
+ *   DAC[4]  -> Vcc_wl_reset   = 2.6 V
  *   DAC[5]  -> Vcc_reset      = 0.0 V at idle
  *   DAC[9]  -> Iref           = 0.5 V
  *   DAC[10] -> Vcomp          = 2.0 V
@@ -61,10 +61,10 @@ struct DacTarget {
 
 static constexpr DacTarget TARGETS[] = {
     {0, "Vcc_read", 0.0f},
-    {1, "Vcc_wl_read", 0.0f},
+    {1, "Vcc_wl_read", 1.7f},
     {2, "Vcc_set", 0.0f},
-    {3, "Vcc_wl_set", 0.0f},
-    {4, "Vcc_wl_reset", 0.0f},
+    {3, "Vcc_wl_set", 1.7f},
+    {4, "Vcc_wl_reset", 2.6f},
     {5, "Vcc_reset", 0.0f},
     {6, "unmapped_DAC6", 0.0f},
     {7, "unmapped_DAC7", 0.0f},
