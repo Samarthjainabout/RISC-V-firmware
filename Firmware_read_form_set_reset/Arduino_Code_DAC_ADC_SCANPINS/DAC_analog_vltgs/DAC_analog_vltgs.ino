@@ -49,7 +49,8 @@ static const uint8_t ADS1258_MONITOR_MASK =
   (1 << ADS1258_DIFF_INDEX_READ) |
   (1 << ADS1258_DIFF_INDEX_SET) |
   (1 << ADS1258_DIFF_INDEX_RESET);
-static const float ADS1258_VREF_VOLTS = 2.500f; // Onboard/reference-output voltage at VREFP-VREFN, not AVDD-AVSS.
+static const float ADS1258_VREF_VOLTS = 5.000f; // VREFP-VREFN. Match the current ADS1258 AVDD-AVSS/reference setup.
+static const float ADS1258_SHUNT_GAIN = 2.6031f; // Calibrated against Saleae LA10-LA9 on GPIO27 1 kOhm shunt.
 static const unsigned long ADS1258_SAMPLE_TIMEOUT_US = 3000;
 static const int MONITOR_DEFAULT_SET_MV = 500;
 static const int MONITOR_DEFAULT_RESET_MV = 500;
@@ -205,7 +206,7 @@ bool refreshAds1258Differentials(uint8_t neededMask, unsigned long timeoutUs) {
     }
 
     ads1258DiffRaw[diffIndex] = sample.code;
-    ads1258DiffMv[diffIndex] = ads1258.codeToVoltage(sample.code, ADS1258_VREF_VOLTS) * 1000.0f;
+    ads1258DiffMv[diffIndex] = ads1258.codeToVoltage(sample.code, ADS1258_VREF_VOLTS) * 1000.0f * ADS1258_SHUNT_GAIN;
     ads1258DiffSeen[diffIndex] = true;
     seenMask |= (1 << diffIndex);
 
@@ -601,6 +602,9 @@ void setup() {
   dac_powerup_continuous();
   d_iter = 0;
   //indicator_test();
+
+  // Caravel <-> Teensy GPIO handshake (see sync_slave.ino)
+  syncSlaveInit();
 }
 
 
@@ -699,6 +703,9 @@ void loop(){
             command = "";
         } else if (command.startsWith("RSRR") || command.startsWith("PACKETS")) {
             runReadSetReadResetSequence(command);
+            command = "";
+        } else if (command == "SYNC") {
+            runSyncSlaveSequence();
             command = "";
         } else {
           mode = 0;
@@ -1116,7 +1123,7 @@ void dac_powerup_continuous_nonblocking() {
         dac_write(dac[11], voltsToDacPercent(0.2f));
         dac_write(dac[12], voltsToDacPercent(1.6f));
         dac_write(dac[13], voltsToDacPercent(1.0f));
-        dac_write(dac[14], voltsToDacPercent(5.0f));
+        dac_write(dac[14], voltsToDacPercent(3.3f));
         dac_write(dac[15], voltsToDacPercent(2.1f));
     }
 }
@@ -1136,7 +1143,7 @@ void dac_powerup_continuous() {
     dac_write(dac[11], voltsToDacPercent(0.6f));   // DAC[11] = 0.6V
     dac_write(dac[12], voltsToDacPercent(1.6f));   // DAC[12] = 1.6V
     dac_write(dac[13], voltsToDacPercent(1.0f));   // DAC[13] = 1.0V
-    dac_write(dac[14], voltsToDacPercent(5.0f));   // DAC[14] = 5.0V
+    dac_write(dac[14], voltsToDacPercent(3.3f));   // DAC[14] = 3.3V for VDDa1
     dac_write(dac[15], voltsToDacPercent(2.1f));   // DAC[15] = 2.1V
     
     // All other DAC channels stay at 0V (they're already 0 from initialization)
