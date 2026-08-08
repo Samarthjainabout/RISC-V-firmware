@@ -1,0 +1,28 @@
+******
+** ngspice-45.2 : Circuit level simulation program
+** Compiled with KLU Direct Linear Solver
+** The U. C. Berkeley CAD Group
+** Copyright 1985-1994, Regents of the University of California.
+** Copyright 2001-2025, The ngspice team.
+** Please get your ngspice manual from https://ngspice.sourceforge.io/docs.html
+** Please file your bug-reports at http://ngspice.sourceforge.net/bugrep.html
+** Creation Date: Fri Sep 12 11:58:13 UTC 2025
+******
+
+Batch mode
+
+Comments and warnings go to log-file: /home/ubuntu-24-04/codex_remote/RISC-V-firmware/neuromorphic_x2_cocotb/ngspice/wl_rail_toggle_shunt_leakage.log
+
+
+WL rail toggle shunt/leakage ngspice results:
+mode     vcc(V)   wl(V)    vshunt(mV)  ishunt(uA)  selected(uA)  leakage(uA)  sel/leak  offrail(pA)
+set     1.8000   1.7910      8.9910     89.9100       89.5504       0.3582     250.0      0.0000
+reset   1.2000   1.1960      4.0110     40.1100       39.8663       0.2392     166.7      0.0000
+read    0.4000   0.3998      0.2079      2.0790        1.9990       0.0800      25.0      0.0000
+
+Read subtractor equivalent: ishunt - ileak = 1.9990 uA
+
+PASS: WL rail toggle shunt/leakage DC bench
+  mux: inactive WL rails are ~0 current
+  decoder: selected-cell branch dominates aggregate leakage
+  subtractor/read: read selected current remains after leakage subtraction

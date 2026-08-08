@@ -1,0 +1,13 @@
+WL supply toggle ngspice shunt-current results:
+  currents are absolute source currents in A
+  all_rails_off                    I_set=0.000000e+00 I_reset=0.000000e+00 I_read=0.000000e+00
+  vcc_wl_set_leakage_only          I_set=9.000180e-08 I_reset=0.000000e+00 I_read=0.000000e+00
+  vcc_wl_set_selected_cell         I_set=1.809000e-05 I_reset=0.000000e+00 I_read=0.000000e+00
+  vcc_wl_reset_leakage_only        I_set=0.000000e+00 I_reset=6.000120e-08 I_read=0.000000e+00
+  vcc_wl_reset_selected_cell       I_set=0.000000e+00 I_reset=8.060000e-06 I_read=0.000000e+00
+  vcc_wl_read_leakage_only         I_set=0.000000e+00 I_reset=0.000000e+00 I_read=8.000400e-09
+  vcc_wl_read_selected_cell        I_set=0.000000e+00 I_reset=0.000000e+00 I_read=4.080000e-07
+
+PASS: WL supply toggle selected-cell/leakage ngspice comparison
+  selected-cell shunt current is >20x leakage-only for SET, RESET, READ
+  non-toggled WL rails remain off in the DC reference model

@@ -1,0 +1,137 @@
+rm -f results.xml
+"make" -f Makefile results.xml
+make[1]: Entering directory '/home/ubuntu-24-04/codex_remote/RISC-V-firmware/neuromorphic_x2_cocotb'
+rm -f results.xml
+MODULE=test_neuromorphic_x2_wb_beh TESTCASE= TOPLEVEL=Neuromorphic_X2_wb_beh TOPLEVEL_LANG=verilog \
+         /usr/bin/vvp -M /home/ubuntu-24-04/caravel_user_Neuromorphic_X1_32x32/venv-cocotb/lib/python3.14/site-packages/cocotb/libs -m libcocotbvpi_icarus   sim_build/sim.vvp  
+     -.--ns INFO     gpi                                ..mbed/gpi_embed.cpp:79   in set_program_name_in_venv        Did not detect Python virtual environment. Using system-wide Python interpreter
+     -.--ns INFO     gpi                                ../gpi/GpiCommon.cpp:101  in gpi_print_registered_impl       VPI registered
+     0.00ns INFO     cocotb                             Running on Icarus Verilog version 12.0 (stable)
+     0.00ns INFO     cocotb                             Running tests with cocotb v1.9.2 from /home/ubuntu-24-04/caravel_user_Neuromorphic_X1_32x32/venv-cocotb/lib/python3.14/site-packages/cocotb
+     0.00ns INFO     cocotb                             Seeding Python random module with 1786178496
+     0.00ns INFO     cocotb.regression                  pytest not found, install it to enable better AssertionError messages
+     0.00ns INFO     cocotb.regression                  Found test test_neuromorphic_x2_wb_beh.tb_wishbone_decode_empty_and_config_only
+     0.00ns INFO     cocotb.regression                  Found test test_neuromorphic_x2_wb_beh.tb_read_path_single_and_all_columns
+     0.00ns INFO     cocotb.regression                  Found test test_neuromorphic_x2_wb_beh.tb_set_reset_programming_then_readback
+     0.00ns INFO     cocotb.regression                  Found test test_neuromorphic_x2_wb_beh.tb_compute_accumulator_and_timeout_order
+     0.00ns INFO     cocotb.regression                  Found test test_neuromorphic_x2_wb_beh.tb_runtime_reconfiguration_without_erasing_existing_cells
+     0.00ns INFO     cocotb.regression                  Found test test_neuromorphic_x2_wb_beh.tb_scan_debug_word_selects_wl_bl_sl_outputs
+     0.00ns INFO     cocotb.regression                  Found test test_neuromorphic_x2_wb_beh.tb_same_packets_tolerate_changed_clock_period
+     0.00ns INFO     cocotb.regression                  Found test test_neuromorphic_x2_wb_beh.tb_dc_scan_decoders_exhaustive_onehot_and_polarity
+     0.00ns INFO     cocotb.regression                  Found test test_neuromorphic_x2_wb_beh.tb_dc_tm_output_mux_static_selects_scan_or_safe_defaults
+     0.00ns INFO     cocotb.regression                  Found test test_neuromorphic_x2_wb_beh.tb_dc_timeout_subtractor_compare_and_saturation_mux
+     0.00ns INFO     cocotb.regression                  Found test test_neuromorphic_x2_wb_beh.tb_compare_reset_vs_read_same_decoder_selection
+     0.00ns INFO     cocotb.regression                  Found test test_neuromorphic_x2_wb_beh.tb_wl_supply_toggle_selected_cell_mode_correlate
+     0.00ns INFO     cocotb.regression                  running tb_wishbone_decode_empty_and_config_only (1/12)
+                                                          Basic bus/address decode and the three configuration packets.
+                                                          
+                                                          Bench correlate: this is the safe packet-send sanity check before using
+                                                          DAC/shunt observations. Wrong address or byte-select should not produce a
+                                                          Wishbone ACK; empty reads return the firmware-visible EMPTY word.
+   500.00ns INFO     cocotb.regression                  tb_wishbone_decode_empty_and_config_only passed
+   500.00ns INFO     cocotb.regression                  running tb_read_path_single_and_all_columns (2/12)
+                                                          READ command decoding, queue ordering, and all-window scan.
+                                                          
+                                                          Bench correlate: maps to sending READ packets while looking for read-shunt
+                                                          activity. Single-column READ should return one typed DATA response; the
+                                                          all-columns flag should return columns 0..31 in order.
+  2550.00ns INFO     cocotb.regression                  tb_read_path_single_and_all_columns passed
+  2550.00ns INFO     cocotb.regression                  running tb_set_reset_programming_then_readback (3/12)
+                                                          SET and RESET program a cell to different expected TDC regions.
+                                                          
+                                                          Bench correlate: send SET/RESET packets and check that the behavioral cell
+                                                          state changes exactly where read/set/reset shunt-current peaks are expected
+                                                          on hardware.
+  3980.00ns INFO     cocotb.regression                  tb_set_reset_programming_then_readback passed
+  3980.00ns INFO     cocotb.regression                  running tb_compute_accumulator_and_timeout_order (4/12)
+                                                          Three COMPUTE packets produce selected-column DATA then timeout words.
+                                                          
+                                                          Bench correlate: this isolates compute-mode packet ordering using only the
+                                                          packet interface. DAC/shunt hardware tests can then verify whether the same
+                                                          command sequence creates the expected compute/read current signature.
+  6570.00ns INFO     cocotb.regression                  tb_compute_accumulator_and_timeout_order passed
+  6570.00ns INFO     cocotb.regression                  running tb_runtime_reconfiguration_without_erasing_existing_cells (5/12)
+                                                          Special SET row=0 col=0 bit17 packet reopens the 3-config window.
+                                                          
+                                                          Bench correlate: lets you change DAC/threshold interpretation between runs
+                                                          without losing previous programmed-cell state in the behavioral model.
+  8450.00ns INFO     cocotb.regression                  tb_runtime_reconfiguration_without_erasing_existing_cells passed
+  8450.00ns INFO     cocotb.regression                  running tb_scan_debug_word_selects_wl_bl_sl_outputs (6/12)
+                                                          Scan/debug path: dummy + 16 LSB-first bits + capture edge.
+                                                          
+                                                          Bench correlate: this is the digital counterpart of varying scan pins and
+                                                          observing selected WL/BL/SL behavior with Saleae/ADC current probes.
+  8950.01ns INFO     cocotb.regression                  tb_scan_debug_word_selects_wl_bl_sl_outputs passed
+  8950.01ns INFO     cocotb.regression                  running tb_same_packets_tolerate_changed_clock_period (7/12)
+                                                          Clock-variation smoke test.
+                                                          
+                                                          Run this test with different CLK_PERIOD_NS values. The design counts clock
+                                                          cycles, so packet semantics must be invariant to absolute ns period.
+  9780.01ns INFO     cocotb.regression                  tb_same_packets_tolerate_changed_clock_period passed
+  9780.01ns INFO     cocotb.regression                  running tb_dc_scan_decoders_exhaustive_onehot_and_polarity (8/12)
+                                                          DC decoder test: every 5-bit WL/BL/SL select gives one-hot output.
+                                                          
+                                                          This expands the basic scan test into a stable-output/DC-style decoder and
+                                                          polarity sweep.  For each selected index, the bench checks address one-hot,
+                                                          float inverse, WL data, and BL/SL SET-vs-RESET data polarity.
+ 23300.01ns INFO     cocotb.regression                  tb_dc_scan_decoders_exhaustive_onehot_and_polarity passed
+ 23300.01ns INFO     cocotb.regression                  running tb_dc_tm_output_mux_static_selects_scan_or_safe_defaults (9/12)
+                                                          DC mux-bank test: TM selects scan outputs; TM=0 selects safe defaults.
+                                                          
+                                                          In this behavioral source the normal/FSM side of the wide output mux banks
+                                                          is represented by safe constants.  This test verifies the mux bank changes
+                                                          with TM as a combinational/static select after a scan word has been latched.
+ 23593.01ns INFO     cocotb.regression                  tb_dc_tm_output_mux_static_selects_scan_or_safe_defaults passed
+ 23593.01ns INFO     cocotb.regression                  running tb_dc_timeout_subtractor_compare_and_saturation_mux (10/12)
+                                                          DC datapath-equivalent test for read timeout subtract/compare + mux.
+                                                          
+                                                          The physical subtractor/current-to-time block is analog and not instantiated
+                                                          in this behavioral file.  The digital equivalent visible here is:
+                                                          
+                                                              raw_count = cell_level + read_value
+                                                              timeout_ceiling = {tdc_time_out[5:0], 8'hFF}
+                                                              output = raw_count if raw_count <= timeout_ceiling else timeout_ceiling
+                                                          
+                                                          This checks below-ceiling, exact-boundary, and above-ceiling saturation.
+ 24543.01ns INFO     cocotb.regression                  tb_dc_timeout_subtractor_compare_and_saturation_mux passed
+ 24543.01ns INFO     cocotb.regression                  running tb_compare_reset_vs_read_same_decoder_selection (11/12)
+                                                          Compare RESET and READ for the same row/column selection.
+                                                          
+                                                          In this behavioral model the normal-mode WL/BL/SL decoder wires are not
+                                                          exposed; only firmware-visible effects are observable.  For the same
+                                                          row/column selection, RESET is a write/program operation with no response
+                                                          word, while READ is a measurement operation that queues one typed DATA word
+                                                          for the selected column.
+ 27513.01ns INFO     cocotb.regression                  tb_compare_reset_vs_read_same_decoder_selection passed
+ 27513.01ns INFO     cocotb.regression                  running tb_wl_supply_toggle_selected_cell_mode_correlate (12/12)
+                                                          Digital correlate for toggling Vcc_wl_set/reset/read on one cell.
+                                                          
+                                                          The behavioral RTL does not expose analog Vcc_wl_set/Vcc_wl_reset/
+                                                          Vcc_wl_read pins, so leakage current is checked by the companion ngspice
+                                                          bench.  This cocotb test verifies the digital side that must line up with
+                                                          that analog experiment: the same row/column selection can be exercised by
+                                                          SET, RESET, and READ packets; SET/RESET change the stored cell without a
+                                                          direct response word, while READ of the same selected cell returns a typed
+                                                          DATA response.  The rail association checked here is the intended bench
+                                                          mapping: SET->Vcc_wl_set, RESET->Vcc_wl_reset, READ->Vcc_wl_read.
+ 29503.01ns INFO     cocotb.regression                  tb_wl_supply_toggle_selected_cell_mode_correlate passed
+ 29503.01ns INFO     cocotb.regression                  ***********************************************************************************************************************************************
+                                                        ** TEST                                                                                   STATUS  SIM TIME (ns)  REAL TIME (s)  RATIO (ns/s) **
+                                                        ***********************************************************************************************************************************************
+                                                        ** test_neuromorphic_x2_wb_beh.tb_wishbone_decode_empty_and_config_only                    PASS         500.00           0.01      52257.76  **
+                                                        ** test_neuromorphic_x2_wb_beh.tb_read_path_single_and_all_columns                         PASS        2050.00           0.01     137540.23  **
+                                                        ** test_neuromorphic_x2_wb_beh.tb_set_reset_programming_then_readback                      PASS        1430.00           0.01     126401.11  **
+                                                        ** test_neuromorphic_x2_wb_beh.tb_compute_accumulator_and_timeout_order                    PASS        2590.00           0.02     145565.36  **
+                                                        ** test_neuromorphic_x2_wb_beh.tb_runtime_reconfiguration_without_erasing_existing_cells   PASS        1880.00           0.01     145994.26  **
+                                                        ** test_neuromorphic_x2_wb_beh.tb_scan_debug_word_selects_wl_bl_sl_outputs                 PASS         500.00           0.01      67387.17  **
+                                                        ** test_neuromorphic_x2_wb_beh.tb_same_packets_tolerate_changed_clock_period               PASS         830.00           0.01      81983.76  **
+                                                        ** test_neuromorphic_x2_wb_beh.tb_dc_scan_decoders_exhaustive_onehot_and_polarity          PASS       13520.00           0.07     196565.53  **
+                                                        ** test_neuromorphic_x2_wb_beh.tb_dc_tm_output_mux_static_selects_scan_or_safe_defaults    PASS         293.00           0.01      51054.60  **
+                                                        ** test_neuromorphic_x2_wb_beh.tb_dc_timeout_subtractor_compare_and_saturation_mux         PASS         950.00           0.01      94278.65  **
+                                                        ** test_neuromorphic_x2_wb_beh.tb_compare_reset_vs_read_same_decoder_selection             PASS        2970.00           0.02     161033.74  **
+                                                        ** test_neuromorphic_x2_wb_beh.tb_wl_supply_toggle_selected_cell_mode_correlate            PASS        1990.00           0.01     148713.06  **
+                                                        ***********************************************************************************************************************************************
+                                                        ** TESTS=12 PASS=12 FAIL=0 SKIP=0                                                                     29503.01           0.21     142345.12  **
+                                                        ***********************************************************************************************************************************************
+                                                        
+make[1]: Leaving directory '/home/ubuntu-24-04/codex_remote/RISC-V-firmware/neuromorphic_x2_cocotb'

@@ -1,0 +1,56 @@
+* Neuromorphic X2 READ vs RESET decoder/DC line-control comparison
+* Simulation-only reference bench derived from Neuromorphic_X2_RTL_detailed_block_diagram_v2.
+*
+* Logic convention: 1 V = logic 1, 0 V = logic 0.
+* "float" nodes are float-control flags: 1 means line is floated/high-Z,
+* 0 means the selected driver is active.
+*
+* Selected row/column is abstracted after the common 5-to-32 decode:
+*   READ and RESET both have selected row/column addr = 1.
+*   Their downstream DC line-control mode differs.
+
+.option noacct
+
+* -----------------------------
+* READ selected-line DC controls
+* -----------------------------
+* READ: selected WL/SL are active for sensing; selected BL is addressed but
+* floated/sensed into subtractor/current-to-time/TDC path.
+V_read_wl_addr_sel       read_wl_addr_sel       0 DC 1
+V_read_wl_data_sel       read_wl_data_sel       0 DC 1
+V_read_wl_float_sel      read_wl_float_sel      0 DC 0
+V_read_sl_addr_sel       read_sl_addr_sel       0 DC 1
+V_read_sl_data_sel       read_sl_data_sel       0 DC 1
+V_read_sl_float_sel      read_sl_float_sel      0 DC 0
+V_read_bl_addr_sel       read_bl_addr_sel       0 DC 1
+V_read_bl_data_sel       read_bl_data_sel       0 DC 0
+V_read_bl_float_sel      read_bl_float_sel      0 DC 1
+V_read_unselected_float  read_unselected_float  0 DC 1
+V_read_subtractor_en     read_subtractor_en     0 DC 1
+V_read_tdc_start         read_tdc_start         0 DC 1
+V_read_response_valid    read_response_valid    0 DC 1
+
+* ----------------------------------
+* RESET selected-line DC controls
+* ----------------------------------
+* Main RESET programming polarity: selected WL=1, BL=0, SL=1, none of the
+* selected WL/BL/SL lines are floated during the main reset drive.  Subtractor
+* and TDC are not part of the main RESET pulse; they may be used later only for
+* verify/readback in the full physical FSM.
+V_reset_wl_addr_sel      reset_wl_addr_sel      0 DC 1
+V_reset_wl_data_sel      reset_wl_data_sel      0 DC 1
+V_reset_wl_float_sel     reset_wl_float_sel     0 DC 0
+V_reset_sl_addr_sel      reset_sl_addr_sel      0 DC 1
+V_reset_sl_data_sel      reset_sl_data_sel      0 DC 1
+V_reset_sl_float_sel     reset_sl_float_sel     0 DC 0
+V_reset_bl_addr_sel      reset_bl_addr_sel      0 DC 1
+V_reset_bl_data_sel      reset_bl_data_sel      0 DC 0
+V_reset_bl_float_sel     reset_bl_float_sel     0 DC 0
+V_reset_unselected_float reset_unselected_float 0 DC 1
+V_reset_subtractor_en    reset_subtractor_en    0 DC 0
+V_reset_tdc_start        reset_tdc_start        0 DC 0
+V_reset_response_valid   reset_response_valid   0 DC 0
+
+.op
+
+.end

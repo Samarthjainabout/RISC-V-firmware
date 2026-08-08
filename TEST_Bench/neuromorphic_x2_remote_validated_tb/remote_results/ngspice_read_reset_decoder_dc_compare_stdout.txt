@@ -1,0 +1,48 @@
+******
+** ngspice-45.2 : Circuit level simulation program
+** Compiled with KLU Direct Linear Solver
+** The U. C. Berkeley CAD Group
+** Copyright 1985-1994, Regents of the University of California.
+** Copyright 2001-2025, The ngspice team.
+** Please get your ngspice manual from https://ngspice.sourceforge.io/docs.html
+** Please file your bug-reports at http://ngspice.sourceforge.net/bugrep.html
+** Creation Date: Fri Sep 12 11:58:13 UTC 2025
+******
+
+Batch mode
+
+Comments and warnings go to log-file: /home/ubuntu-24-04/codex_remote/RISC-V-firmware/neuromorphic_x2_cocotb/ngspice/read_reset_decoder_dc_compare.log
+
+
+READ vs RESET DC ngspice measured values:
+  read_bl_addr_sel             = 1
+  read_bl_data_sel             = 0
+  read_bl_float_sel            = 1
+  read_response_valid          = 1
+  read_sl_addr_sel             = 1
+  read_sl_data_sel             = 1
+  read_sl_float_sel            = 0
+  read_subtractor_en           = 1
+  read_tdc_start               = 1
+  read_unselected_float        = 1
+  read_wl_addr_sel             = 1
+  read_wl_data_sel             = 1
+  read_wl_float_sel            = 0
+  reset_bl_addr_sel            = 1
+  reset_bl_data_sel            = 0
+  reset_bl_float_sel           = 0
+  reset_response_valid         = 0
+  reset_sl_addr_sel            = 1
+  reset_sl_data_sel            = 1
+  reset_sl_float_sel           = 0
+  reset_subtractor_en          = 0
+  reset_tdc_start              = 0
+  reset_unselected_float       = 1
+  reset_wl_addr_sel            = 1
+  reset_wl_data_sel            = 1
+  reset_wl_float_sel           = 0
+
+PASS: ngspice READ-vs-RESET DC decoder/control comparison
+  Same: selected WL/SL/BL address decode and unselected float convention
+  Different: READ floats/senses selected BL and enables subtractor/TDC/response
+             RESET main pulse drives selected BL low and has no subtractor/TDC/response

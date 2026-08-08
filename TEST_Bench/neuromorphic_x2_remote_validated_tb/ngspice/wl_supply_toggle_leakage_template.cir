@@ -1,0 +1,32 @@
+* Neuromorphic X2 WL supply toggle / selected-cell leakage template
+* Generated cases substitute numeric values for VSET, VRESET, VREAD and
+* selected-cell resistances.  1 V logic is not implied here; these are analog
+* rail voltages used only for a DC reference/leakage study.
+*
+* Rails correspond to external bench supplies/shunts:
+*   vcc_wl_set   -> SET WL rail shunt
+*   vcc_wl_reset -> RESET WL rail shunt
+*   vcc_wl_read  -> READ WL rail shunt
+*
+* Currents through VSET_RAIL/VRESET_RAIL/VREAD_RAIL are the simulated shunt
+* readings.  Absolute source current is reported by the Python runner.
+
+.option noacct
+
+VSET_RAIL   vcc_wl_set   0 DC {VSET}
+VRESET_RAIL vcc_wl_reset 0 DC {VRESET}
+VREAD_RAIL  vcc_wl_read  0 DC {VREAD}
+
+* Selected-cell conduction path for each mode.  Runner uses a very large value
+* when no selected cell is enabled, leaving only the leakage resistor.
+RSET_SELECTED   vcc_wl_set   0 {RSET_SELECTED}
+RRESET_SELECTED vcc_wl_reset 0 {RRESET_SELECTED}
+RREAD_SELECTED  vcc_wl_read  0 {RREAD_SELECTED}
+
+* Background array/driver leakage seen by the corresponding rail shunt.
+RSET_LEAK   vcc_wl_set   0 {RSET_LEAK}
+RRESET_LEAK vcc_wl_reset 0 {RRESET_LEAK}
+RREAD_LEAK  vcc_wl_read  0 {RREAD_LEAK}
+
+.op
+.end

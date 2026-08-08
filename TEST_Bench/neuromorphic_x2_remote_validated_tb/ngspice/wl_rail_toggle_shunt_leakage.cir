@@ -1,0 +1,61 @@
+* Neuromorphic X2 WL rail toggle / shunt-current / leakage DC bench
+*
+* Purpose:
+*   Model the bench experiment where VCC_WL_SET, VCC_WL_RESET, and VCC_WL_READ
+*   are toggled one at a time and their shunt voltages/currents are observed.
+*   This is a compact DC reference model, not a PDK-extracted macro.
+*
+* What is represented:
+*   - mux: only the enabled WL rail has selected-cell current
+*   - decoder: selected cell branch dominates over aggregate unselected leakage
+*   - subtractor/read: read selected current minus leakage is positive and
+*     reconstructs the selected-cell branch current
+*
+* Units/convention:
+*   shunt = 100 ohm.  Current is reconstructed as (VCC - V(after_shunt))/Rshunt.
+*   all inactive rails have VCC=0, so their shunt current should be ~0.
+
+.option noacct
+.param RSHUNT=100
+
+* ---------------------------
+* SET rail active experiment
+* ---------------------------
+Vvcc_wl_set        vcc_wl_set        0 DC 1.8
+Rsh_wl_set         vcc_wl_set        wl_set        {RSHUNT}
+Rset_selected_cell wl_set            0 20k
+Rset_array_leak    wl_set            0 5meg
+
+* -----------------------------
+* RESET rail active experiment
+* -----------------------------
+Vvcc_wl_reset         vcc_wl_reset      0 DC 1.2
+Rsh_wl_reset          vcc_wl_reset      wl_reset      {RSHUNT}
+Rreset_selected_cell  wl_reset          0 30k
+Rreset_array_leak     wl_reset          0 5meg
+
+* ---------------------------
+* READ rail active experiment
+* ---------------------------
+Vvcc_wl_read        vcc_wl_read       0 DC 0.4
+Rsh_wl_read         vcc_wl_read       wl_read       {RSHUNT}
+Rread_selected_cell wl_read           0 200k
+Rread_array_leak    wl_read           0 5meg
+
+* ------------------------------------------
+* Explicit inactive-rail sanity experiments
+* ------------------------------------------
+Vvcc_wl_set_off   vcc_wl_set_off   0 DC 0
+Rsh_wl_set_off    vcc_wl_set_off   wl_set_off   {RSHUNT}
+Roff_set_load     wl_set_off       0 20k
+
+Vvcc_wl_reset_off vcc_wl_reset_off 0 DC 0
+Rsh_wl_reset_off  vcc_wl_reset_off wl_reset_off {RSHUNT}
+Roff_reset_load   wl_reset_off     0 30k
+
+Vvcc_wl_read_off  vcc_wl_read_off  0 DC 0
+Rsh_wl_read_off   vcc_wl_read_off  wl_read_off  {RSHUNT}
+Roff_read_load    wl_read_off      0 200k
+
+.op
+.end

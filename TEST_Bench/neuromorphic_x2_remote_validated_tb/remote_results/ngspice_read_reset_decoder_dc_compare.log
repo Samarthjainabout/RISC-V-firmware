@@ -1,0 +1,253 @@
+
+Note: No compatibility mode selected!
+
+
+Circuit: * neuromorphic x2 read vs reset decoder/dc line-control comparison
+
+Doing analysis at TEMP = 27.000000 and TNOM = 27.000000
+
+Using SPARSE 1.3 as Direct Linear Solver
+
+No. of Data Rows : 1
+	Node                                  Voltage
+	----                                  -------
+	----	-------
+	reset_response_valid             0.000000e+00
+	reset_tdc_start                  0.000000e+00
+	reset_subtractor_en              0.000000e+00
+	reset_unselected_float           1.000000e+00
+	reset_bl_float_sel               0.000000e+00
+	reset_bl_data_sel                0.000000e+00
+	reset_bl_addr_sel                1.000000e+00
+	reset_sl_float_sel               0.000000e+00
+	reset_sl_data_sel                1.000000e+00
+	reset_sl_addr_sel                1.000000e+00
+	reset_wl_float_sel               0.000000e+00
+	reset_wl_data_sel                1.000000e+00
+	reset_wl_addr_sel                1.000000e+00
+	read_response_valid              1.000000e+00
+	read_tdc_start                   1.000000e+00
+	read_subtractor_en               1.000000e+00
+	read_unselected_float            1.000000e+00
+	read_bl_float_sel                1.000000e+00
+	read_bl_data_sel                 0.000000e+00
+	read_bl_addr_sel                 1.000000e+00
+	read_sl_float_sel                0.000000e+00
+	read_sl_data_sel                 1.000000e+00
+	read_sl_addr_sel                 1.000000e+00
+	read_wl_float_sel                0.000000e+00
+	read_wl_data_sel                 1.000000e+00
+	read_wl_addr_sel                 1.000000e+00
+
+	Source	Current
+	------	-------
+
+	v_read_wl_addr_sel#branch        0.000000e+00
+	v_read_wl_data_sel#branch        0.000000e+00
+	v_read_wl_float_sel#branch       0.000000e+00
+	v_read_sl_addr_sel#branch        0.000000e+00
+	v_read_sl_data_sel#branch        0.000000e+00
+	v_read_sl_float_sel#branch       0.000000e+00
+	v_read_bl_addr_sel#branch        0.000000e+00
+	v_read_bl_data_sel#branch        0.000000e+00
+	v_read_bl_float_sel#branch       0.000000e+00
+	v_read_unselected_float#branch   0.000000e+00
+	v_read_subtractor_en#branch      0.000000e+00
+	v_read_tdc_start#branch          0.000000e+00
+	v_read_response_valid#branch     0.000000e+00
+	v_reset_wl_addr_sel#branch       0.000000e+00
+	v_reset_wl_data_sel#branch       0.000000e+00
+	v_reset_wl_float_sel#branch      0.000000e+00
+	v_reset_sl_addr_sel#branch       0.000000e+00
+	v_reset_sl_data_sel#branch       0.000000e+00
+	v_reset_sl_float_sel#branch      0.000000e+00
+	v_reset_bl_addr_sel#branch       0.000000e+00
+	v_reset_bl_data_sel#branch       0.000000e+00
+	v_reset_bl_float_sel#branch      0.000000e+00
+	v_reset_unselected_float#branch   0.000000e+00
+	v_reset_subtractor_en#branch     0.000000e+00
+	v_reset_tdc_start#branch         0.000000e+00
+	v_reset_response_valid#branch    0.000000e+00
+
+No matching models
+ Vsource: Independent voltage source
+     device v_reset_response_vali     v_reset_tdc_start v_reset_subtractor_en
+         dc                     0                     0                     0
+      acmag                     0                     0                     0
+      pulse         -         -         -
+        sin         -         -         -
+        exp         -         -         -
+        pwl         -         -         -
+       sffm         -         -         -
+         am         -         -         -
+    trnoise         -         -         -
+   trrandom         -         -         -
+    portnum                     0                     0                     0
+         z0                     0                     0                     0
+        pwr                     0                     0                     0
+       freq                     0                     0                     0
+      phase                     0                     0                     0
+          i                     0                     0                     0
+          p                     0                     0                     0
+
+ Vsource: Independent voltage source
+     device v_reset_unselected_fl  v_reset_bl_float_sel   v_reset_bl_data_sel
+         dc                     1                     0                     0
+      acmag                     0                     0                     0
+      pulse         -         -         -
+        sin         -         -         -
+        exp         -         -         -
+        pwl         -         -         -
+       sffm         -         -         -
+         am         -         -         -
+    trnoise         -         -         -
+   trrandom         -         -         -
+    portnum                     0                     0                     0
+         z0                     0                     0                     0
+        pwr                     0                     0                     0
+       freq                     0                     0                     0
+      phase                     0                     0                     0
+          i                     0                     0                     0
+          p                     0                     0                     0
+
+ Vsource: Independent voltage source
+     device   v_reset_bl_addr_sel  v_reset_sl_float_sel   v_reset_sl_data_sel
+         dc                     1                     0                     1
+      acmag                     0                     0                     0
+      pulse         -         -         -
+        sin         -         -         -
+        exp         -         -         -
+        pwl         -         -         -
+       sffm         -         -         -
+         am         -         -         -
+    trnoise         -         -         -
+   trrandom         -         -         -
+    portnum                     0                     0                     0
+         z0                     0                     0                     0
+        pwr                     0                     0                     0
+       freq                     0                     0                     0
+      phase                     0                     0                     0
+          i                     0                     0                     0
+          p                     0                     0                     0
+
+ Vsource: Independent voltage source
+     device   v_reset_sl_addr_sel  v_reset_wl_float_sel   v_reset_wl_data_sel
+         dc                     1                     0                     1
+      acmag                     0                     0                     0
+      pulse         -         -         -
+        sin         -         -         -
+        exp         -         -         -
+        pwl         -         -         -
+       sffm         -         -         -
+         am         -         -         -
+    trnoise         -         -         -
+   trrandom         -         -         -
+    portnum                     0                     0                     0
+         z0                     0                     0                     0
+        pwr                     0                     0                     0
+       freq                     0                     0                     0
+      phase                     0                     0                     0
+          i                     0                     0                     0
+          p                     0                     0                     0
+
+ Vsource: Independent voltage source
+     device   v_reset_wl_addr_sel v_read_response_valid      v_read_tdc_start
+         dc                     1                     1                     1
+      acmag                     0                     0                     0
+      pulse         -         -         -
+        sin         -         -         -
+        exp         -         -         -
+        pwl         -         -         -
+       sffm         -         -         -
+         am         -         -         -
+    trnoise         -         -         -
+   trrandom         -         -         -
+    portnum                     0                     0                     0
+         z0                     0                     0                     0
+        pwr                     0                     0                     0
+       freq                     0                     0                     0
+      phase                     0                     0                     0
+          i                     0                     0                     0
+          p                     0                     0                     0
+
+ Vsource: Independent voltage source
+     device  v_read_subtractor_en v_read_unselected_flo   v_read_bl_float_sel
+         dc                     1                     1                     1
+      acmag                     0                     0                     0
+      pulse         -         -         -
+        sin         -         -         -
+        exp         -         -         -
+        pwl         -         -         -
+       sffm         -         -         -
+         am         -         -         -
+    trnoise         -         -         -
+   trrandom         -         -         -
+    portnum                     0                     0                     0
+         z0                     0                     0                     0
+        pwr                     0                     0                     0
+       freq                     0                     0                     0
+      phase                     0                     0                     0
+          i                     0                     0                     0
+          p                     0                     0                     0
+
+ Vsource: Independent voltage source
+     device    v_read_bl_data_sel    v_read_bl_addr_sel   v_read_sl_float_sel
+         dc                     0                     1                     0
+      acmag                     0                     0                     0
+      pulse         -         -         -
+        sin         -         -         -
+        exp         -         -         -
+        pwl         -         -         -
+       sffm         -         -         -
+         am         -         -         -
+    trnoise         -         -         -
+   trrandom         -         -         -
+    portnum                     0                     0                     0
+         z0                     0                     0                     0
+        pwr                     0                     0                     0
+       freq                     0                     0                     0
+      phase                     0                     0                     0
+          i                     0                     0                     0
+          p                     0                     0                     0
+
+ Vsource: Independent voltage source
+     device    v_read_sl_data_sel    v_read_sl_addr_sel   v_read_wl_float_sel
+         dc                     1                     1                     0
+      acmag                     0                     0                     0
+      pulse         -         -         -
+        sin         -         -         -
+        exp         -         -         -
+        pwl         -         -         -
+       sffm         -         -         -
+         am         -         -         -
+    trnoise         -         -         -
+   trrandom         -         -         -
+    portnum                     0                     0                     0
+         z0                     0                     0                     0
+        pwr                     0                     0                     0
+       freq                     0                     0                     0
+      phase                     0                     0                     0
+          i                     0                     0                     0
+          p                     0                     0                     0
+
+ Vsource: Independent voltage source
+     device    v_read_wl_data_sel    v_read_wl_addr_sel
+         dc                     1                     1
+      acmag                     0                     0
+      pulse         -         -
+        sin         -         -
+        exp         -         -
+        pwl         -         -
+       sffm         -         -
+         am         -         -
+    trnoise         -         -
+   trrandom         -         -
+    portnum                     0                     0
+         z0                     0                     0
+        pwr                     0                     0
+       freq                     0                     0
+      phase                     0                     0
+          i                     0                     0
+          p                     0                     0
+
+
