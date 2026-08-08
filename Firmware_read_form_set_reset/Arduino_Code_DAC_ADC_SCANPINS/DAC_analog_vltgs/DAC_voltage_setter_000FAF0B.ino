@@ -14,11 +14,12 @@
  *
  * DAC1 channel map from Setup_block_diagram:
  *   DAC[0]  -> Vcc_read       = 0.0 V at idle
- *   DAC[1]  -> Vcc_wl_read    = 1.7 V
+ *   DAC[1]  -> Vcc_wl_read    = 0.0 V
  *   DAC[2]  -> Vcc_set        = 0.0 V at idle, through shunt
- *   DAC[3]  -> Vcc_wl_set     = 1.7 V
- *   DAC[4]  -> Vcc_wl_reset   = 2.6 V
+ *   DAC[3]  -> Vcc_wl_set     = 0.0 V
+ *   DAC[4]  -> Vcc_wl_reset   = 0.0 V
  *   DAC[5]  -> Vcc_reset      = 0.0 V at idle
+ *   DAC[7]  -> VDDIO          = 5.0 V
  *   DAC[9]  -> Iref           = 0.5 V
  *   DAC[10] -> Vcomp          = 2.0 V
  *   DAC[11] -> Bias_comp2     = 0.6 V
@@ -27,8 +28,8 @@
  *   DAC[14] -> VDDa1          = 5.0 V
  *   DAC[15] -> VDDc2/Vccd2    = 2.1 V
  *
- * DAC[6], DAC[7], and DAC[8] are left at 0.0 V because the setup diagram
- * marks DAC[6]/DAC[7]/DAC[8] as not connected in the supplied Caravel map.
+ * DAC[6] and DAC[8] are left at 0.0 V because the setup diagram marks
+ * them as not connected in the supplied Caravel map.
  */
 
 #include <Arduino.h>
@@ -52,6 +53,7 @@ static float current_vbias_volts = 1.6f;
 static float current_dc_bias_volts = 1.0f;
 static float current_vdda1_volts = 5.0f;
 static float current_vddc2_volts = 2.1f;
+static float current_vddio_volts = 5.0f;
 
 struct DacTarget {
   uint8_t channel;
@@ -61,13 +63,13 @@ struct DacTarget {
 
 static constexpr DacTarget TARGETS[] = {
     {0, "Vcc_read", 0.0f},
-    {1, "Vcc_wl_read", 1.7f},
+    {1, "Vcc_wl_read", 0.0f},
     {2, "Vcc_set", 0.0f},
-    {3, "Vcc_wl_set", 1.7f},
-    {4, "Vcc_wl_reset", 2.6f},
+    {3, "Vcc_wl_set", 0.0f},
+    {4, "Vcc_wl_reset", 0.0f},
     {5, "Vcc_reset", 0.0f},
     {6, "unmapped_DAC6", 0.0f},
-    {7, "unmapped_DAC7", 0.0f},
+    {7, "VDDIO", 5.0f},
     {8, "unmapped_DAC8", 0.0f},
     {9, "Iref", 0.5f},
     {10, "Vcomp", 2.0f},
@@ -219,7 +221,11 @@ static bool set_named_rail(const String &name, float volts)
   const char *label = nullptr;
   float *current_value = nullptr;
 
-  if (name == "iref") {
+  if (name == "vddio" || name == "dac7") {
+    channel = 7;
+    label = "VDDIO";
+    current_value = &current_vddio_volts;
+  } else if (name == "iref") {
     channel = 9;
     label = "Iref";
     current_value = &current_iref_volts;

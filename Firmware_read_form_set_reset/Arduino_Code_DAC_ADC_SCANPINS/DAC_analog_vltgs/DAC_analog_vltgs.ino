@@ -707,6 +707,9 @@ void loop(){
         } else if (command == "SYNC") {
             runSyncSlaveSequence();
             command = "";
+        } else if (command == "READY_PULSE") {
+            runSyncReadyPulseDiag();
+            command = "";
         } else {
           mode = 0;
           dac_stndby();
@@ -1115,15 +1118,15 @@ void dac_powerup_continuous_nonblocking() {
     
     if (millis() - last_update >= 10) {
         last_update = millis();
-        dac_write(dac[1],  voltsToDacPercent(1.7f));
-        dac_write(dac[3],  voltsToDacPercent(1.7f));
-        dac_write(dac[4],  voltsToDacPercent(2.6f));
+        dac_write(dac[1],  voltsToDacPercent(0.0f));
+        dac_write(dac[3],  voltsToDacPercent(0.0f));
+        dac_write(dac[4],  voltsToDacPercent(0.0f));
         dac_write(dac[9],  voltsToDacPercent(0.5f));
         dac_write(dac[10], voltsToDacPercent(0.9f));
         dac_write(dac[11], voltsToDacPercent(0.2f));
         dac_write(dac[12], voltsToDacPercent(1.6f));
         dac_write(dac[13], voltsToDacPercent(1.0f));
-        dac_write(dac[14], voltsToDacPercent(3.3f));
+        dac_write(dac[14], voltsToDacPercent(5.0f));
         dac_write(dac[15], voltsToDacPercent(2.1f));
     }
 }
@@ -1133,17 +1136,17 @@ void dac_powerup_continuous_nonblocking() {
 void dac_powerup_continuous() {
   //while (1) {
     // Apply only the specified voltages
-    dac_write(dac[1],  voltsToDacPercent(1.7f));   // DAC[1]  = 1.7V for Vcc_wl_read
-    dac_write(dac[3],  voltsToDacPercent(1.7f));   // DAC[3]  = 1.7V for Vcc_wl_set
-    dac_write(dac[4],  voltsToDacPercent(2.6f));   // DAC[4]  = 2.6V for Vcc_wl_reset
-    dac_write(dac[7],  voltsToDacPercent(0.6f));   // DAC[7]  = 0.6V
+    dac_write(dac[1],  voltsToDacPercent(0.0f));   // DAC[1]  = 0.0V for Vcc_wl_read
+    dac_write(dac[3],  voltsToDacPercent(0.0f));   // DAC[3]  = 0.0V for Vcc_wl_set
+    dac_write(dac[4],  voltsToDacPercent(0.0f));   // DAC[4]  = 0.0V for Vcc_wl_reset
+    dac_write(dac[7],  voltsToDacPercent(5.0f));   // DAC[7]  = 5.0V for Caravel VDDIO
     dac_write(dac[6],  voltsToDacPercent(3.3f));   // DAC[6]  = 3.3V
     dac_write(dac[9],  voltsToDacPercent(0.5f));   // DAC[9]  = 0.5V
     dac_write(dac[10], voltsToDacPercent(0.9f));   // DAC[10] = 0.9V
     dac_write(dac[11], voltsToDacPercent(0.6f));   // DAC[11] = 0.6V
     dac_write(dac[12], voltsToDacPercent(1.6f));   // DAC[12] = 1.6V
     dac_write(dac[13], voltsToDacPercent(1.0f));   // DAC[13] = 1.0V
-    dac_write(dac[14], voltsToDacPercent(3.3f));   // DAC[14] = 3.3V for VDDa1
+    dac_write(dac[14], voltsToDacPercent(5.0f));   // DAC[14] = 5.0V for VDDa1
     dac_write(dac[15], voltsToDacPercent(2.1f));   // DAC[15] = 2.1V
     
     // All other DAC channels stay at 0V (they're already 0 from initialization)
